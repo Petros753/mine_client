@@ -2,11 +2,12 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-export default async function BookPage({
-  params,
-}: {
-  params: { branchId: string };
-}) {
+export default async function BookPage(
+  props: {
+    params: Promise<{ branchId: string }>;
+  }
+) {
+  const params = await props.params;
   const branch = await prisma.branch.findUnique({
     where: { id: params.branchId },
     include: { company: true },

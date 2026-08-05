@@ -1,15 +1,29 @@
+import Link from "next/link";
 import { getDashboardMetrics } from "@/lib/dashboard";
 import { MetricCard } from "@/components/metric-card";
+import {
+  getCompanyBranches,
+  requireCompanyId,
+  resolveBranchId,
+} from "@/lib/tenant";
 
-// Временно: берём первый филиал для демо. Позже — из сессии пользователя.
-async function getFirstBranchId(): Promise<string | null> {
-  const { prisma } = await import("@/lib/prisma");
-  const branch = await prisma.branch.findFirst({ select: { id: true } });
-  return branch?.id ?? null;
-}
+export const metadata = {
+  title: "Дашборд",
+};
 
-export default async function DashboardPage() {
-  const branchId = await getFirstBranchId();
+// Метрики считаются на каждый запрос: страница зависит от сессии и от данных,
+// которые меняются в течение дня, — кэшировать её на этапе сборки нельзя
+export const dynamic = "force-dynamic";
+
+export default async function DashboardPage(
+  props: {
+    searchParams: Promise<{ branchId?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
+  const companyId = await requireCompanyId();
+  const branches = await getCompanyBranches(companyId);
+  const branchId = resolveBranchId(branches, searchParams.branchId);
 
   if (!branchId) {
     return (
@@ -21,12 +35,19 @@ export default async function DashboardPage() {
           <p className="mt-2 text-zinc-600 dark:text-zinc-400">
             Создайте первый филиал, чтобы увидеть дашборд.
           </p>
+          <Link
+            href="/admin/branches/new"
+            className="mt-6 inline-block rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+          >
+            Создать филиал
+          </Link>
         </div>
       </div>
     );
   }
 
   const metrics = await getDashboardMetrics(branchId);
+  const currentBranch = branches.find((branch) => branch.id === branchId);
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
@@ -37,19 +58,39 @@ export default async function DashboardPage() {
           </h1>
           <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
             Ключевые показатели за сегодня
+            {currentBranch ? ` · ${currentBranch.name}` : ""}
           </p>
         </div>
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mb-6">
-          <a
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+          <Link
             href="/admin"
             className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
           >
             ← В админку
-          </a>
+          </Link>
+
+          {branches.length > 1 && (
+            <div className="flex flex-wrap gap-2">
+              {branches.map((branch) => (
+                <Link
+                  key={branch.id}
+                  href={`/dashboard?branchId=${branch.id}`}
+                  className={`rounded-md px-3 py-1 text-sm ${
+                    branch.id === branchId
+                      ? "bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900"
+                      : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300"
+                  }`}
+                >
+                  {branch.name}
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
+
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           <MetricCard
             title="Записи сегодня"

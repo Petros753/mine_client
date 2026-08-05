@@ -4,13 +4,14 @@ import { notFound } from "next/navigation";
 import { format, addDays, startOfDay, addMinutes } from "date-fns";
 import { ru } from "date-fns/locale";
 
-export default async function SelectTimePage({
-  params,
-  searchParams,
-}: {
-  params: { branchId: string; serviceId: string; employeeId: string };
-  searchParams: { date?: string };
-}) {
+export default async function SelectTimePage(
+  props: {
+    params: Promise<{ branchId: string; serviceId: string; employeeId: string }>;
+    searchParams: Promise<{ date?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const employee = await prisma.employee.findUnique({
     where: { id: params.employeeId },
     include: { user: true, branch: true },

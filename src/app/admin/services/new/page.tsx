@@ -1,10 +1,20 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import {
+  assertBranchBelongsToCompany,
+  getCompanyBranches,
+  requireCompanyId,
+  resolveBranchId,
+} from "@/lib/tenant";
 
 async function createService(formData: FormData) {
   "use server";
 
+  const companyId = await requireCompanyId();
+
   const branchId = formData.get("branchId") as string;
+  await assertBranchBelongsToCompany(branchId, companyId);
+
   const name = formData.get("name") as string;
   const description = formData.get("description") as string;
   const durationMinutes = parseInt(formData.get("durationMinutes") as string);
@@ -23,17 +33,20 @@ async function createService(formData: FormData) {
   redirect(`/admin/services?branchId=${branchId}`);
 }
 
-export default async function NewServicePage({
-  searchParams,
-}: {
-  searchParams: { branchId?: string };
-}) {
-  const branches = await prisma.branch.findMany({
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
+export default async function NewServicePage(
+  props: {
+    searchParams: Promise<{ branchId?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
+  const companyId = await requireCompanyId();
+  const branches = await getCompanyBranches(companyId);
+  const defaultBranchId = resolveBranchId(branches, searchParams.branchId);
 
-  const defaultBranchId = searchParams.branchId || branches[0]?.id;
+  // Услуга принадлежит филиалу — без филиала форму показывать нечему
+  if (!defaultBranchId) {
+    redirect("/admin/branches/new");
+  }
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">

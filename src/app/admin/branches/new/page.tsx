@@ -1,27 +1,19 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { requireCompanyId } from "@/lib/tenant";
 
 async function createBranch(formData: FormData) {
   "use server";
+
+  const companyId = await requireCompanyId();
 
   const name = formData.get("name") as string;
   const address = formData.get("address") as string;
   const phone = formData.get("phone") as string;
 
-  // Временно: берём первую компанию или создаём демо
-  let company = await prisma.company.findFirst();
-  if (!company) {
-    company = await prisma.company.create({
-      data: {
-        name: "Демо-компания",
-        industry: "BEAUTY",
-      },
-    });
-  }
-
   await prisma.branch.create({
     data: {
-      companyId: company.id,
+      companyId,
       name,
       address: address || null,
       phone: phone || null,
@@ -31,7 +23,9 @@ async function createBranch(formData: FormData) {
   redirect("/admin/branches");
 }
 
-export default function NewBranchPage() {
+export default async function NewBranchPage() {
+  await requireCompanyId();
+
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <header className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">

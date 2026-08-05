@@ -1,9 +1,28 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { requireCompanyId } from "@/lib/tenant";
 
 async function toggleService(employeeId: string, serviceId: string, enabled: boolean) {
   "use server";
+
+  const companyId = await requireCompanyId();
+
+  // Оба id приходят с клиента: проверяем, что сотрудник и услуга — свои
+  const [employee, service] = await Promise.all([
+    prisma.employee.findFirst({
+      where: { id: employeeId, branch: { companyId } },
+      select: { id: true },
+    }),
+    prisma.service.findFirst({
+      where: { id: serviceId, branch: { companyId } },
+      select: { id: true },
+    }),
+  ]);
+
+  if (!employee || !service) {
+    throw new Error("Сотрудник или услуга не найдены в вашей компании");
+  }
 
   if (enabled) {
     await prisma.employeeService.upsert({
@@ -22,13 +41,15 @@ async function toggleService(employeeId: string, serviceId: string, enabled: boo
   }
 }
 
-export default async function EmployeeServicesPage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  const employee = await prisma.employee.findUnique({
-    where: { id: params.id },
+export default async function EmployeeServicesPage(
+  props: {
+    params: Promise<{ id: string }>;
+  }
+) {
+  const params = await props.params;
+  const companyId = await requireCompanyId();
+  const employee = await prisma.employee.findFirst({
+    where: { id: params.id, branch: { companyId } },
     include: {
       user: true,
       branch: true,

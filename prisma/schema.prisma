@@ -27,6 +27,7 @@ model Company {
   updatedAt DateTime @updatedAt
 
   branches      Branch[]
+  users         User[]
   subscription  Subscription?
   loyaltyRules  LoyaltyRule[]
 
@@ -80,6 +81,7 @@ enum Industry {
 // Пользователь платформы (владелец, админ, мастер)
 model User {
   id           String   @id @default(cuid())
+  companyId    String   // к какой компании относится аккаунт (арендатор)
   email        String   @unique
   phone        String?
   passwordHash String
@@ -90,8 +92,10 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   employeeProfile Employee?
 
+  @@index([companyId])
   @@map("users")
 }
 

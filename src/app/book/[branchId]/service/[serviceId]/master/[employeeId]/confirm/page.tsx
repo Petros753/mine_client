@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { notifyClient } from "@/lib/notifications";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { format, parseISO, addMinutes } from "date-fns";
@@ -46,7 +47,7 @@ async function createAppointment(formData: FormData) {
   }
 
   // Создаём запись
-  await prisma.appointment.create({
+  const appointment = await prisma.appointment.create({
     data: {
       branchId,
       clientId: client.id,
@@ -60,16 +61,20 @@ async function createAppointment(formData: FormData) {
     },
   });
 
+  // «Запись создана, ожидайте подтверждения»
+  await notifyClient(appointment.id, "created");
+
   redirect(`/book/${branchId}/success`);
 }
 
-export default async function ConfirmPage({
-  params,
-  searchParams,
-}: {
-  params: { branchId: string; serviceId: string; employeeId: string };
-  searchParams: { time?: string };
-}) {
+export default async function ConfirmPage(
+  props: {
+    params: Promise<{ branchId: string; serviceId: string; employeeId: string }>;
+    searchParams: Promise<{ time?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   if (!searchParams.time) {
     redirect(`/book/${params.branchId}/service/${params.serviceId}/master/${params.employeeId}`);
   }
