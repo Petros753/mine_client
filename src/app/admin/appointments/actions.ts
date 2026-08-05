@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 import { isAppointmentStatus, isTransitionAllowed } from "@/lib/appointments";
 import { notifyClient } from "@/lib/notifications";
 
@@ -12,6 +13,13 @@ import { notifyClient } from "@/lib/notifications";
  * из формы считаем недоверенными и проверяем переход по таблице статусов.
  */
 export async function updateAppointmentStatus(formData: FormData) {
+  // Server Action доступен по прямому POST, поэтому проверяем сессию здесь,
+  // а не полагаемся на защиту страницы в proxy
+  const session = await auth();
+  if (!session?.user) {
+    throw new Error("Требуется авторизация");
+  }
+
   const appointmentId = String(formData.get("appointmentId") ?? "");
   const nextStatus = String(formData.get("status") ?? "");
 

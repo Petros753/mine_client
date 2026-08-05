@@ -1,16 +1,30 @@
 import Link from "next/link";
+import { auth } from "@/lib/auth";
+import { SignOutButton } from "@/components/sign-out-button";
 
-export default function AdminPage() {
+export default async function AdminPage() {
+  const session = await auth();
+
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <header className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-          <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
-            Админ-панель
-          </h1>
-          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-            Управление филиалами, услугами и сотрудниками
-          </p>
+        <div className="mx-auto flex max-w-7xl items-start justify-between gap-4 px-4 py-6 sm:px-6 lg:px-8">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
+              Админ-панель
+            </h1>
+            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+              Управление филиалами, услугами и сотрудниками
+            </p>
+          </div>
+          {session?.user && (
+            <div className="flex shrink-0 items-center gap-3">
+              <span className="hidden text-sm text-zinc-600 dark:text-zinc-400 sm:inline">
+                {session.user.name || session.user.email}
+              </span>
+              <SignOutButton />
+            </div>
+          )}
         </div>
       </header>
 

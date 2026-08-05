@@ -1,12 +1,19 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import bcrypt from "bcrypt";
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL,
 });
 const prisma = new PrismaClient({ adapter });
 
+// Пароль всех демо-аккаунтов. Хэшируем настоящим bcrypt — с ним работает
+// авторизация, поэтому под демо-пользователями можно войти в админку.
+const DEMO_PASSWORD = "demo1234";
+
 async function main() {
+  const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
+
   // Компания
   const company = await prisma.company.upsert({
     where: { id: "demo-company" },
@@ -71,27 +78,42 @@ async function main() {
     }),
   ]);
 
+  // Владелец компании — под ним можно войти в админку
+  const owner = await prisma.user.upsert({
+    where: { email: "owner@example.com" },
+    update: { passwordHash },
+    create: {
+      email: "owner@example.com",
+      firstName: "Пётр",
+      lastName: "Владелец",
+      passwordHash,
+      role: "OWNER",
+    },
+  });
+
   // Сотрудники
   const user1 = await prisma.user.upsert({
     where: { email: "anna@example.com" },
-    update: {},
+    // Перетираем возможный старый placeholder-хэш из ранних сидов
+    update: { passwordHash },
     create: {
       email: "anna@example.com",
       firstName: "Анна",
       lastName: "Иванова",
-      passwordHash: "temp",
+      passwordHash,
       role: "EMPLOYEE",
     },
   });
 
   const user2 = await prisma.user.upsert({
     where: { email: "maria@example.com" },
-    update: {},
+    // Перетираем возможный старый placeholder-хэш из ранних сидов
+    update: { passwordHash },
     create: {
       email: "maria@example.com",
       firstName: "Мария",
       lastName: "Петрова",
-      passwordHash: "temp",
+      passwordHash,
       role: "EMPLOYEE",
     },
   });
@@ -229,6 +251,7 @@ async function main() {
   console.log(`   Услуги: ${services.length}`);
   console.log(`   Сотрудники: 2`);
   console.log(`   Записи на сегодня: 2`);
+  console.log(`   Вход: ${owner.email} / ${DEMO_PASSWORD}`);
 }
 
 main()
