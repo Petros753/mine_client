@@ -1,0 +1,48 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { prisma } from "@/lib/prisma";
+import { isAppointmentStatus, isTransitionAllowed } from "@/lib/appointments";
+
+/**
+ * Смена статуса записи из журнала.
+ *
+ * Server Action вызывается обычным POST-запросом, поэтому все параметры
+ * из формы считаем недоверенными и проверяем переход по таблице статусов.
+ */
+export async function updateAppointmentStatus(formData: FormData) {
+  const appointmentId = String(formData.get("appointmentId") ?? "");
+  const nextStatus = String(formData.get("status") ?? "");
+
+  if (!appointmentId || !isAppointmentStatus(nextStatus)) {
+    throw new Error("Некорректные параметры смены статуса");
+  }
+
+  const appointment = await prisma.appointment.findUnique({
+    where: { id: appointmentId },
+    select: { id: true, status: true },
+  });
+
+  if (!appointment) {
+    throw new Error("Запись не найдена");
+  }
+
+  // Повторный клик по той же кнопке ничего не меняет
+  if (appointment.status === nextStatus) {
+    return;
+  }
+
+  if (!isTransitionAllowed(appointment.status, nextStatus)) {
+    throw new Error(
+      `Переход ${appointment.status} → ${nextStatus} недопустим`
+    );
+  }
+
+  await prisma.appointment.update({
+    where: { id: appointmentId },
+    data: { status: nextStatus },
+  });
+
+  revalidatePath("/admin/appointments");
+  revalidatePath("/dashboard");
+}

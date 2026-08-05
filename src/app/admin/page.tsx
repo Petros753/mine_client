@@ -17,6 +17,20 @@ export default function AdminPage() {
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           <Link
+            href="/admin/appointments"
+            className="overflow-hidden rounded-lg bg-white shadow transition-shadow hover:shadow-md dark:bg-zinc-900"
+          >
+            <div className="px-4 py-5 sm:p-6">
+              <h3 className="text-lg font-medium text-zinc-900 dark:text-zinc-50">
+                Журнал записей
+              </h3>
+              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                Календарь записей и смена статусов
+              </p>
+            </div>
+          </Link>
+
+          <Link
             href="/admin/branches"
             className="overflow-hidden rounded-lg bg-white shadow transition-shadow hover:shadow-md dark:bg-zinc-900"
           >
