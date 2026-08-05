@@ -63,13 +63,14 @@ async function createAppointment(formData: FormData) {
   redirect(`/book/${branchId}/success`);
 }
 
-export default async function ConfirmPage({
-  params,
-  searchParams,
-}: {
-  params: { branchId: string; serviceId: string; employeeId: string };
-  searchParams: { time?: string };
-}) {
+export default async function ConfirmPage(
+  props: {
+    params: Promise<{ branchId: string; serviceId: string; employeeId: string }>;
+    searchParams: Promise<{ time?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   if (!searchParams.time) {
     redirect(`/book/${params.branchId}/service/${params.serviceId}/master/${params.employeeId}`);
   }

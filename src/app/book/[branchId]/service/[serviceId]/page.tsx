@@ -2,11 +2,12 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-export default async function SelectMasterPage({
-  params,
-}: {
-  params: { branchId: string; serviceId: string };
-}) {
+export default async function SelectMasterPage(
+  props: {
+    params: Promise<{ branchId: string; serviceId: string }>;
+  }
+) {
+  const params = await props.params;
   const service = await prisma.service.findUnique({
     where: { id: params.serviceId },
     include: { branch: true },

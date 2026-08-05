@@ -1,11 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 
-export default async function ServicesPage({
-  searchParams,
-}: {
-  searchParams: { branchId?: string };
-}) {
+export default async function ServicesPage(
+  props: {
+    searchParams: Promise<{ branchId?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const branchId = searchParams.branchId;
   const where = branchId ? { branchId } : {};
 

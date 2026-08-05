@@ -22,11 +22,12 @@ async function toggleService(employeeId: string, serviceId: string, enabled: boo
   }
 }
 
-export default async function EmployeeServicesPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default async function EmployeeServicesPage(
+  props: {
+    params: Promise<{ id: string }>;
+  }
+) {
+  const params = await props.params;
   const employee = await prisma.employee.findUnique({
     where: { id: params.id },
     include: {

@@ -23,11 +23,12 @@ async function createService(formData: FormData) {
   redirect(`/admin/services?branchId=${branchId}`);
 }
 
-export default async function NewServicePage({
-  searchParams,
-}: {
-  searchParams: { branchId?: string };
-}) {
+export default async function NewServicePage(
+  props: {
+    searchParams: Promise<{ branchId?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const branches = await prisma.branch.findMany({
     select: { id: true, name: true },
     orderBy: { name: "asc" },

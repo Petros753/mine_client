@@ -35,11 +35,12 @@ async function createEmployee(formData: FormData) {
   redirect(`/admin/employees?branchId=${branchId}`);
 }
 
-export default async function NewEmployeePage({
-  searchParams,
-}: {
-  searchParams: { branchId?: string };
-}) {
+export default async function NewEmployeePage(
+  props: {
+    searchParams: Promise<{ branchId?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const branches = await prisma.branch.findMany({
     select: { id: true, name: true },
     orderBy: { name: "asc" },

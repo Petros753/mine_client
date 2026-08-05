@@ -1,10 +1,11 @@
 import Link from "next/link";
 
-export default function SuccessPage({
-  params,
-}: {
-  params: { branchId: string };
-}) {
+export default async function SuccessPage(
+  props: {
+    params: Promise<{ branchId: string }>;
+  }
+) {
+  const params = await props.params;
   return (
     <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-zinc-950">
       <div className="mx-auto max-w-md px-4 text-center">
