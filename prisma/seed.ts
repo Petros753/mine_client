@@ -83,6 +83,7 @@ async function main() {
     where: { email: "owner@example.com" },
     update: { passwordHash },
     create: {
+      companyId: company.id,
       email: "owner@example.com",
       firstName: "Пётр",
       lastName: "Владелец",
@@ -97,6 +98,7 @@ async function main() {
     // Перетираем возможный старый placeholder-хэш из ранних сидов
     update: { passwordHash },
     create: {
+      companyId: company.id,
       email: "anna@example.com",
       firstName: "Анна",
       lastName: "Иванова",
@@ -110,6 +112,7 @@ async function main() {
     // Перетираем возможный старый placeholder-хэш из ранних сидов
     update: { passwordHash },
     create: {
+      companyId: company.id,
       email: "maria@example.com",
       firstName: "Мария",
       lastName: "Петрова",

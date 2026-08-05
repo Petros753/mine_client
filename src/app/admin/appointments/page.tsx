@@ -16,6 +16,12 @@ import {
   type AppointmentWithRelations,
   type DateFilter,
 } from "@/lib/appointments";
+import {
+  NO_BRANCHES_HINT,
+  getCompanyBranches,
+  requireCompanyId,
+  resolveBranchId,
+} from "@/lib/tenant";
 import { updateAppointmentStatus } from "./actions";
 
 export const metadata = {
@@ -36,25 +42,12 @@ export default async function AppointmentsPage({
   const first = (value: string | string[] | undefined) =>
     Array.isArray(value) ? value[0] : value;
 
-  const branches = await prisma.branch.findMany({
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
-
-  const requestedBranchId = first(query.branchId);
-  const branchId =
-    branches.find((branch) => branch.id === requestedBranchId)?.id ??
-    branches[0]?.id;
+  const companyId = await requireCompanyId();
+  const branches = await getCompanyBranches(companyId);
+  const branchId = resolveBranchId(branches, first(query.branchId));
 
   if (!branchId) {
-    return (
-      <EmptyShell
-        title="Нет филиалов"
-        description="Создайте филиал, чтобы вести журнал записей."
-        actionHref="/admin/branches/new"
-        actionLabel="Создать филиал"
-      />
-    );
+    return <EmptyShell {...NO_BRANCHES_HINT} />;
   }
 
   const dateParam = first(query.date);

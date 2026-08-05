@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
+import { getCompanyBranches, requireCompanyId } from "@/lib/tenant";
 
 export default async function ServicesPage(
   props: {
@@ -7,18 +8,18 @@ export default async function ServicesPage(
   }
 ) {
   const searchParams = await props.searchParams;
-  const branchId = searchParams.branchId;
-  const where = branchId ? { branchId } : {};
+  const companyId = await requireCompanyId();
+  const branches = await getCompanyBranches(companyId);
+
+  // Чужой филиал в адресе не должен ничего показывать — фильтруем по компании
+  const branchId = branches.find(
+    (branch) => branch.id === searchParams.branchId
+  )?.id;
 
   const services = await prisma.service.findMany({
-    where,
+    where: branchId ? { branchId } : { branch: { companyId } },
     include: { branch: true },
     orderBy: { createdAt: "desc" },
-  });
-
-  const branches = await prisma.branch.findMany({
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
   });
 
   return (

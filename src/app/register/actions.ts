@@ -40,9 +40,15 @@ export async function register(
     // Компания и владелец создаются вместе: если что-то упадёт, не должно
     // остаться ни «пустой» компании, ни владельца без компании
     await prisma.$transaction(async (tx) => {
-      await tx.company.create({ data: { name: companyName } });
+      const company = await tx.company.create({ data: { name: companyName } });
       await tx.user.create({
-        data: { email, passwordHash, firstName, role: "OWNER" },
+        data: {
+          companyId: company.id,
+          email,
+          passwordHash,
+          firstName,
+          role: "OWNER",
+        },
       });
     });
   } catch (error) {

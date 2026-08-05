@@ -2,9 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
 import { isAppointmentStatus, isTransitionAllowed } from "@/lib/appointments";
 import { notifyClient } from "@/lib/notifications";
+import { requireCompanyId } from "@/lib/tenant";
 
 /**
  * Смена статуса записи из журнала.
@@ -15,10 +15,7 @@ import { notifyClient } from "@/lib/notifications";
 export async function updateAppointmentStatus(formData: FormData) {
   // Server Action доступен по прямому POST, поэтому проверяем сессию здесь,
   // а не полагаемся на защиту страницы в proxy
-  const session = await auth();
-  if (!session?.user) {
-    throw new Error("Требуется авторизация");
-  }
+  const companyId = await requireCompanyId();
 
   const appointmentId = String(formData.get("appointmentId") ?? "");
   const nextStatus = String(formData.get("status") ?? "");
@@ -27,8 +24,10 @@ export async function updateAppointmentStatus(formData: FormData) {
     throw new Error("Некорректные параметры смены статуса");
   }
 
-  const appointment = await prisma.appointment.findUnique({
-    where: { id: appointmentId },
+  // Ищем запись сразу в рамках компании: id приходит из формы, и чужую
+  // запись менять нельзя
+  const appointment = await prisma.appointment.findFirst({
+    where: { id: appointmentId, branch: { companyId } },
     select: { id: true, status: true },
   });
 

@@ -28,6 +28,7 @@ export const authConfig = {
     jwt({ token, user }) {
       if (user) {
         token.role = user.role;
+        token.companyId = user.companyId;
       }
       return token;
     },
@@ -37,6 +38,9 @@ export const authConfig = {
       }
       if (token.role) {
         session.user.role = token.role;
+      }
+      if (token.companyId) {
+        session.user.companyId = token.companyId;
       }
       return session;
     },

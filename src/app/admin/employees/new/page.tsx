@@ -1,24 +1,41 @@
+import { randomBytes } from "node:crypto";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { hashPassword } from "@/lib/auth";
+import {
+  assertBranchBelongsToCompany,
+  getCompanyBranches,
+  requireCompanyId,
+  resolveBranchId,
+} from "@/lib/tenant";
 
 async function createEmployee(formData: FormData) {
   "use server";
 
+  const companyId = await requireCompanyId();
+
   const branchId = formData.get("branchId") as string;
+  await assertBranchBelongsToCompany(branchId, companyId);
+
   const firstName = formData.get("firstName") as string;
   const lastName = formData.get("lastName") as string;
   const email = formData.get("email") as string;
   const phone = formData.get("phone") as string;
   const position = formData.get("position") as string;
 
+  // Пароль сотруднику не задаём: ставим случайный хэш, под которым нельзя
+  // войти. TODO: приглашение по email со ссылкой на установку пароля.
+  const passwordHash = await hashPassword(randomBytes(32).toString("hex"));
+
   // Создаём пользователя
   const user = await prisma.user.create({
     data: {
+      companyId,
       email,
       phone: phone || null,
       firstName,
       lastName: lastName || null,
-      passwordHash: "temp", // TODO: хэшировать при добавлении auth
+      passwordHash,
       role: "EMPLOYEE",
     },
   });
@@ -41,12 +58,14 @@ export default async function NewEmployeePage(
   }
 ) {
   const searchParams = await props.searchParams;
-  const branches = await prisma.branch.findMany({
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
+  const companyId = await requireCompanyId();
+  const branches = await getCompanyBranches(companyId);
+  const defaultBranchId = resolveBranchId(branches, searchParams.branchId);
 
-  const defaultBranchId = searchParams.branchId || branches[0]?.id;
+  // Сотрудник привязан к филиалу — без филиала форму показывать нечему
+  if (!defaultBranchId) {
+    redirect("/admin/branches/new");
+  }
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
