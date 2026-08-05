@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { isAppointmentStatus, isTransitionAllowed } from "@/lib/appointments";
+import { notifyClient } from "@/lib/notifications";
 
 /**
  * Смена статуса записи из журнала.
@@ -42,6 +43,13 @@ export async function updateAppointmentStatus(formData: FormData) {
     where: { id: appointmentId },
     data: { status: nextStatus },
   });
+
+  // Уведомляем клиента о смене статуса (COMPLETED и NO_SHOW — без письма)
+  if (nextStatus === "CONFIRMED") {
+    await notifyClient(appointmentId, "confirmed");
+  } else if (nextStatus === "CANCELLED") {
+    await notifyClient(appointmentId, "cancelled");
+  }
 
   revalidatePath("/admin/appointments");
   revalidatePath("/dashboard");
