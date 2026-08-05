@@ -42,6 +42,14 @@ export default async function DashboardPage() {
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mb-6">
+          <a
+            href="/admin"
+            className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
+          >
+            ← В админку
+          </a>
+        </div>
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           <MetricCard
             title="Записи сегодня"

@@ -31,6 +31,14 @@ export default async function BranchesPage() {
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mb-6">
+          <Link
+            href="/admin"
+            className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
+          >
+            ← Назад в админку
+          </Link>
+        </div>
         {branches.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-zinc-600 dark:text-zinc-400">
