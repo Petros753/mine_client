@@ -11,7 +11,7 @@ export default async function EmployeesPage({
 
   const employees = await prisma.employee.findMany({
     where,
-    include: { user: true, branch: true },
+    include: { user: true, branch: true, services: true },
     orderBy: { createdAt: "desc" },
   });
 
@@ -110,7 +110,7 @@ export default async function EmployeesPage({
                           {employee.user.phone && ` • ${employee.user.phone}`}
                         </p>
                       </div>
-                      <div className="text-right">
+                      <div className="text-right space-y-2">
                         <span
                           className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
                             employee.isBookable
@@ -120,6 +120,14 @@ export default async function EmployeesPage({
                         >
                           {employee.isBookable ? "Доступен для записи" : "Не доступен"}
                         </span>
+                        <div>
+                          <Link
+                            href={`/admin/employees/${employee.id}/services`}
+                            className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
+                          >
+                            Услуги ({employee.services.length}) →
+                          </Link>
+                        </div>
                       </div>
                     </div>
                   </div>
