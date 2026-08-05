@@ -7,9 +7,10 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// Prisma 7: url подключения больше не указывается в схеме —
+// см. prisma.config.ts (для CLI/migrate) и src/lib/prisma.ts (для рантайма)
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 // -----------------------------------------------------
