@@ -1,3 +1,11 @@
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+
 interface MetricCardProps {
   title: string;
   value: string | number;
@@ -6,18 +14,20 @@ interface MetricCardProps {
 
 export function MetricCard({ title, value, description }: MetricCardProps) {
   return (
-    <div className="overflow-hidden rounded-lg bg-white px-4 py-5 shadow dark:bg-zinc-900 sm:p-6">
-      <dt className="truncate text-sm font-medium text-zinc-500 dark:text-zinc-400">
-        {title}
-      </dt>
-      <dd className="mt-1 text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-        {value}
-      </dd>
-      {description && (
-        <dd className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-          {description}
-        </dd>
-      )}
-    </div>
+    <Card>
+      <CardHeader className="pb-2">
+        <CardDescription className="text-xs font-medium uppercase tracking-wide">
+          {title}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <CardTitle className="text-3xl font-semibold tracking-tight">
+          {value}
+        </CardTitle>
+        {description && (
+          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+        )}
+      </CardContent>
+    </Card>
   );
 }

@@ -1,101 +1,92 @@
-import Link from "next/link";
-import { requireAdminOrOwner } from "@/lib/tenant";
-import { SignOutButton } from "@/components/sign-out-button";
+import { format, endOfWeek, startOfWeek } from "date-fns";
+import { prisma } from "@/lib/prisma";
+import {
+  formatDateParam,
+  parseCalendarDate,
+  parseCalendarView,
+} from "@/lib/calendar";
+import { getCalendarAppointments } from "@/lib/calendar-data";
+import {
+  getCompanyBranches,
+  requireAdminOrOwner,
+  resolveBranchId,
+} from "@/lib/tenant";
+import { CalendarWorkspace } from "@/components/workspace/calendar-workspace";
+import { EmptyState } from "@/components/workspace/empty-state";
 
-export default async function AdminPage() {
+export const metadata = {
+  title: "Календарь",
+};
+
+export const dynamic = "force-dynamic";
+
+export default async function AdminCalendarPage({
+  searchParams,
+}: PageProps<"/admin">) {
+  const query = await searchParams;
+  const first = (value: string | string[] | undefined) =>
+    Array.isArray(value) ? value[0] : value;
+
   const session = await requireAdminOrOwner();
+  const branches = await getCompanyBranches(session.user.companyId);
+  const branchId = resolveBranchId(branches, first(query.branchId));
+
+  if (!branchId) {
+    return (
+      <EmptyState
+        title="Нет филиалов"
+        description="Создайте первый филиал, чтобы работать с календарём."
+        actionHref="/admin/branches/new"
+        actionLabel="Создать филиал"
+      />
+    );
+  }
+
+  const date = parseCalendarDate(first(query.date));
+  const view = parseCalendarView(first(query.view));
+
+  const rangeFrom = view === "week" ? startOfWeek(date, { weekStartsOn: 1 }) : date;
+  const rangeTo = view === "week" ? endOfWeek(date, { weekStartsOn: 1 }) : date;
+
+  const [employeeRows, serviceRows, appointments] = await Promise.all([
+    prisma.employee.findMany({
+      where: { branchId },
+      include: {
+        user: { select: { firstName: true, lastName: true } },
+        services: { select: { serviceId: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.service.findMany({
+      where: { branchId, isActive: true },
+      orderBy: { name: "asc" },
+    }),
+    getCalendarAppointments({ branchId, from: rangeFrom, to: rangeTo }),
+  ]);
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <header className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="mx-auto flex max-w-7xl items-start justify-between gap-4 px-4 py-6 sm:px-6 lg:px-8">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
-              Админ-панель
-            </h1>
-            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-              Управление филиалами, услугами и сотрудниками
-            </p>
-          </div>
-          {session?.user && (
-            <div className="flex shrink-0 items-center gap-3">
-              <span className="hidden text-sm text-zinc-600 dark:text-zinc-400 sm:inline">
-                {session.user.name || session.user.email}
-              </span>
-              <SignOutButton />
-            </div>
-          )}
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          <Link
-            href="/admin/appointments"
-            className="overflow-hidden rounded-lg bg-white shadow transition-shadow hover:shadow-md dark:bg-zinc-900"
-          >
-            <div className="px-4 py-5 sm:p-6">
-              <h3 className="text-lg font-medium text-zinc-900 dark:text-zinc-50">
-                Журнал записей
-              </h3>
-              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                Календарь записей и смена статусов
-              </p>
-            </div>
-          </Link>
-
-          <Link
-            href="/admin/branches"
-            className="overflow-hidden rounded-lg bg-white shadow transition-shadow hover:shadow-md dark:bg-zinc-900"
-          >
-            <div className="px-4 py-5 sm:p-6">
-              <h3 className="text-lg font-medium text-zinc-900 dark:text-zinc-50">
-                Филиалы
-              </h3>
-              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                Управление точками бизнеса
-              </p>
-            </div>
-          </Link>
-
-          <Link
-            href="/admin/services"
-            className="overflow-hidden rounded-lg bg-white shadow transition-shadow hover:shadow-md dark:bg-zinc-900"
-          >
-            <div className="px-4 py-5 sm:p-6">
-              <h3 className="text-lg font-medium text-zinc-900 dark:text-zinc-50">
-                Услуги
-              </h3>
-              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                Управление услугами и ценами
-              </p>
-            </div>
-          </Link>
-
-          <Link
-            href="/admin/employees"
-            className="overflow-hidden rounded-lg bg-white shadow transition-shadow hover:shadow-md dark:bg-zinc-900"
-          >
-            <div className="px-4 py-5 sm:p-6">
-              <h3 className="text-lg font-medium text-zinc-900 dark:text-zinc-50">
-                Сотрудники
-              </h3>
-              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                Управление мастерами
-              </p>
-            </div>
-          </Link>
-        </div>
-
-        <div className="mt-8">
-          <Link
-            href="/dashboard"
-            className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
-          >
-            ← Вернуться к дашборду
-          </Link>
-        </div>
-      </main>
-    </div>
+    <CalendarWorkspace
+      date={formatDateParam(date)}
+      today={format(new Date(), "yyyy-MM-dd")}
+      view={view}
+      role={session.user.role}
+      branchId={branchId}
+      branches={branches}
+      employees={employeeRows.map((employee) => ({
+        id: employee.id,
+        name: [employee.user.firstName, employee.user.lastName]
+          .filter(Boolean)
+          .join(" "),
+        position: employee.position,
+        serviceIds: employee.services.map((link) => link.serviceId),
+      }))}
+      services={serviceRows.map((service) => ({
+        id: service.id,
+        name: service.name,
+        durationMinutes: service.durationMinutes,
+        price: Number(service.price),
+      }))}
+      appointments={appointments}
+    />
   );
 }
