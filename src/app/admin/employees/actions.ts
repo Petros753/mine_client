@@ -15,6 +15,27 @@ export interface EmployeeFormState {
   ok?: boolean;
 }
 
+/** Повторная отправка приглашения: создаёт новый токен взамен истёкшего */
+export async function resendInvitation(
+  employeeId: string
+): Promise<EmployeeFormState> {
+  const companyId = await requireAdminCompanyId();
+
+  const employee = await prisma.employee.findFirst({
+    where: { id: employeeId, branch: { companyId } },
+    select: { id: true },
+  });
+
+  if (!employee) {
+    return { error: "Сотрудник не найден" };
+  }
+
+  await sendEmployeeInvitation(employee.id);
+
+  revalidatePath("/admin/employees");
+  return { ok: true };
+}
+
 export async function createEmployee(
   _prevState: EmployeeFormState,
   formData: FormData
