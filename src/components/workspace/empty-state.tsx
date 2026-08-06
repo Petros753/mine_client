@@ -20,8 +20,8 @@ export function EmptyState({
         <h2 className="text-lg font-medium text-foreground">{title}</h2>
         <p className="mt-1 text-sm text-muted-foreground">{description}</p>
         {actionHref && actionLabel && (
-          <Button size="sm" className="mt-4" render={<Link href={actionHref} />}>
-            {actionLabel}
+          <Button size="sm" className="mt-4" asChild>
+            <Link href={actionHref}>{actionLabel}</Link>
           </Button>
         )}
       </div>

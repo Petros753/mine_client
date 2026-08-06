@@ -145,9 +145,11 @@ export function Topbar({
             Новая запись
           </Button>
         ) : (
-          <Button size="sm" className="gap-1" render={<Link href="/book" />}>
-            <Plus className="h-4 w-4" />
-            Новая запись
+          <Button size="sm" className="gap-1" asChild>
+            <Link href="/book">
+              <Plus className="h-4 w-4" />
+              Новая запись
+            </Link>
           </Button>
         )}
       </div>
