@@ -2,9 +2,22 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcrypt";
 
-const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL,
-});
+function parsePgUrl(url: string) {
+  const parsed = new URL(url);
+  return {
+    host: parsed.hostname,
+    port: parsed.port ? Number(parsed.port) : 5432,
+    user: parsed.username,
+    password: parsed.password,
+    database: parsed.pathname.replace(/^\//, ""),
+  };
+}
+
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL is not set");
+}
+
+const adapter = new PrismaPg(parsePgUrl(process.env.DATABASE_URL));
 const prisma = new PrismaClient({ adapter });
 
 // Пароль всех демо-аккаунтов. Хэшируем настоящим bcrypt — с ним работает

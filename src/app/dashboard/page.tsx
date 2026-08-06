@@ -110,7 +110,12 @@ export default async function DashboardPage(
               ← В админку
             </Link>
           ) : (
-            <span />
+            <Link
+              href="/my-appointments"
+              className="text-sm font-medium text-zinc-900 hover:text-zinc-700 dark:text-zinc-50 dark:hover:text-zinc-300"
+            >
+              Мои записи →
+            </Link>
           )}
 
           {canAccessAdmin && branches.length > 1 && (
