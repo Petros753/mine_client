@@ -48,7 +48,10 @@ export default async function AdminCalendarPage({
   const [employeeRows, serviceRows, appointments] = await Promise.all([
     prisma.employee.findMany({
       where: { branchId },
-      include: { user: { select: { firstName: true, lastName: true } } },
+      include: {
+        user: { select: { firstName: true, lastName: true } },
+        services: { select: { serviceId: true } },
+      },
       orderBy: { createdAt: "asc" },
     }),
     prisma.service.findMany({
@@ -72,6 +75,7 @@ export default async function AdminCalendarPage({
           .filter(Boolean)
           .join(" "),
         position: employee.position,
+        serviceIds: employee.services.map((link) => link.serviceId),
       }))}
       services={serviceRows.map((service) => ({
         id: service.id,

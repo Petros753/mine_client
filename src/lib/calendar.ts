@@ -101,6 +101,8 @@ export interface CalendarEmployee {
   id: string;
   name: string;
   position: string | null;
+  /** Услуги, которые мастер оказывает (EmployeeService) */
+  serviceIds: string[];
 }
 
 export interface CalendarService {

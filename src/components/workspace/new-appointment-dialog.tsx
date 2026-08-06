@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
+import Link from "next/link";
 import { format, parse } from "date-fns";
 import { ru } from "date-fns/locale";
 import {
@@ -38,15 +39,35 @@ interface NewAppointmentDialogProps {
 
 export function NewAppointmentDialog({
   slot,
+  ...props
+}: NewAppointmentDialogProps) {
+  if (!slot) return null;
+
+  // key сбрасывает состояние формы при выборе другой ячейки — это надёжнее,
+  // чем синхронизировать его эффектом при смене пропсов
+  return (
+    <NewAppointmentForm
+      key={`${slot.employeeId}-${slot.date}-${slot.time}`}
+      slot={slot}
+      {...props}
+    />
+  );
+}
+
+function NewAppointmentForm({
+  slot,
   branchId,
   employees,
   services,
   onOpenChange,
-}: NewAppointmentDialogProps) {
+}: NewAppointmentDialogProps & { slot: NewAppointmentSlot }) {
   const [state, formAction, pending] = useActionState<
     CreateAppointmentState,
     FormData
   >(createAppointment, {});
+
+  // Мастера можно сменить прямо в диалоге — от него зависит список услуг
+  const [employeeId, setEmployeeId] = useState(slot.employeeId);
 
   // Запись создана — закрываем диалог
   useEffect(() => {
@@ -55,10 +76,14 @@ export function NewAppointmentDialog({
     }
   }, [state.ok, onOpenChange]);
 
-  if (!slot) return null;
-
   const slotDate = parse(slot.date, "yyyy-MM-dd", new Date());
-  const employee = employees.find((item) => item.id === slot.employeeId);
+  const employee = employees.find((item) => item.id === employeeId);
+
+  // Показываем только те услуги, которые мастер действительно оказывает —
+  // так же, как это делает публичный виджет записи
+  const availableServices = services.filter((service) =>
+    employee?.serviceIds.includes(service.id)
+  );
 
   return (
     <Dialog open onOpenChange={onOpenChange}>
@@ -71,12 +96,7 @@ export function NewAppointmentDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {/* key сбрасывает поля формы при выборе другой ячейки */}
-        <form
-          key={`${slot.employeeId}-${slot.date}-${slot.time}`}
-          action={formAction}
-          className="space-y-4"
-        >
+        <form action={formAction} className="space-y-4">
           <input type="hidden" name="branchId" value={branchId} />
           <input
             type="hidden"
@@ -84,29 +104,13 @@ export function NewAppointmentDialog({
             value={`${slot.date}T${slot.time}`}
           />
 
-          <Field label="Услуга" htmlFor="serviceId">
-            <select
-              id="serviceId"
-              name="serviceId"
-              required
-              defaultValue={services[0]?.id ?? ""}
-              className={selectClassName}
-            >
-              {services.map((service) => (
-                <option key={service.id} value={service.id}>
-                  {service.name} · {service.durationMinutes} мин ·{" "}
-                  {service.price.toLocaleString("ru-RU")} ₽
-                </option>
-              ))}
-            </select>
-          </Field>
-
           <Field label="Мастер" htmlFor="employeeId">
             <select
               id="employeeId"
               name="employeeId"
               required
-              defaultValue={slot.employeeId}
+              value={employeeId}
+              onChange={(event) => setEmployeeId(event.target.value)}
               className={selectClassName}
             >
               {employees.map((item) => (
@@ -115,6 +119,37 @@ export function NewAppointmentDialog({
                 </option>
               ))}
             </select>
+          </Field>
+
+          <Field label="Услуга" htmlFor="serviceId">
+            {availableServices.length > 0 ? (
+              <select
+                id="serviceId"
+                name="serviceId"
+                required
+                // key перевыбирает первую услугу при смене мастера
+                key={employeeId}
+                defaultValue={availableServices[0]?.id}
+                className={selectClassName}
+              >
+                {availableServices.map((service) => (
+                  <option key={service.id} value={service.id}>
+                    {service.name} · {service.durationMinutes} мин ·{" "}
+                    {service.price.toLocaleString("ru-RU")} ₽
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
+                У мастера не отмечено ни одной услуги.{" "}
+                <Link
+                  href={`/admin/employees/${employeeId}/services`}
+                  className="font-medium text-foreground underline"
+                >
+                  Настроить услуги
+                </Link>
+              </p>
+            )}
           </Field>
 
           <div className="grid grid-cols-2 gap-4">
@@ -167,7 +202,10 @@ export function NewAppointmentDialog({
             >
               Отмена
             </Button>
-            <Button type="submit" disabled={pending}>
+            <Button
+              type="submit"
+              disabled={pending || availableServices.length === 0}
+            >
               {pending ? "Создаём…" : "Создать запись"}
             </Button>
           </DialogFooter>

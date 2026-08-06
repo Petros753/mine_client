@@ -132,6 +132,19 @@ export async function createAppointment(
     return { error: "Услуга не найдена в этом филиале" };
   }
 
+  // Мастер должен оказывать эту услугу — то же правило, что и в публичном
+  // виджете. Фильтр в диалоге это лишь подсказка, решает проверка здесь.
+  const performsService = await prisma.employeeService.findUnique({
+    where: {
+      employeeId_serviceId: { employeeId: employee.id, serviceId: service.id },
+    },
+    select: { employeeId: true },
+  });
+
+  if (!performsService) {
+    return { error: "Мастер не оказывает эту услугу" };
+  }
+
   const endAt = addMinutes(startAt, service.durationMinutes);
 
   // Занятым считаем время активных записей: отменённые и неявки не мешают
