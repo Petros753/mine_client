@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { format, addDays, startOfWeek, endOfWeek, startOfDay } from "date-fns";
+import { format, addDays, startOfWeek, endOfWeek, startOfDay, parseISO } from "date-fns";
 import { ru } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -14,25 +14,41 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import type { CalendarView } from "@/lib/calendar";
 import type { UserRole } from "@prisma/client";
 
-export type CalendarView = "day" | "week" | "month";
-
 interface TopbarProps {
-  date: Date;
+  /** yyyy-MM-dd выбранного дня */
+  date: string;
   view: CalendarView;
   branches: Array<{ id: string; name: string }>;
   branchId?: string | null;
   role: UserRole;
   basePath: string;
+  /** Если передан — кнопка открывает диалог, иначе ведёт на публичный виджет */
+  onCreate?: () => void;
 }
 
-export function Topbar({ date, view, branches, branchId, role, basePath }: TopbarProps) {
+export function Topbar({
+  date: dateStr,
+  view,
+  branches,
+  branchId,
+  role,
+  basePath,
+  onCreate,
+}: TopbarProps) {
   const router = useRouter();
   const isAdmin = role === "OWNER" || role === "ADMIN";
 
   const today = startOfDay(new Date());
-  const dateStr = format(date, "yyyy-MM-dd");
+  const date = parseISO(dateStr);
 
   const periodLabel =
     view === "day"
@@ -78,21 +94,39 @@ export function Topbar({ date, view, branches, branchId, role, basePath }: Topba
       </div>
 
       <div className="flex items-center gap-2">
-        {(["day", "week", "month"] as CalendarView[]).map((v) => (
+        {(["day", "week"] as CalendarView[]).map((v) => (
           <Button
             key={v}
             variant={view === v ? "secondary" : "ghost"}
             size="sm"
             onClick={() => setView(v)}
           >
-            {v === "day" ? "День" : v === "week" ? "Неделя" : "Месяц"}
+            {v === "day" ? "День" : "Неделя"}
           </Button>
         ))}
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                // span-обёртка: у disabled-кнопки не всплывают события мыши
+                <span className="inline-flex">
+                  <Button variant="ghost" size="sm" disabled>
+                    Месяц
+                  </Button>
+                </span>
+              }
+            />
+            <TooltipContent>В разработке</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
 
       <div className="flex items-center gap-3">
         {isAdmin && branches.length > 1 && (
-          <Select value={branchId ?? undefined} onValueChange={setBranch}>
+          <Select
+            value={branchId ?? undefined}
+            onValueChange={(value) => value && setBranch(value)}
+          >
             <SelectTrigger className="h-8 w-[180px] text-xs">
               <SelectValue placeholder="Филиал" />
             </SelectTrigger>
@@ -105,12 +139,17 @@ export function Topbar({ date, view, branches, branchId, role, basePath }: Topba
             </SelectContent>
           </Select>
         )}
-        <Button size="sm" className="gap-1" asChild>
-          <Link href={isAdmin ? "/admin/appointments/new" : "/book"}>
+        {onCreate ? (
+          <Button size="sm" className="gap-1" onClick={onCreate}>
             <Plus className="h-4 w-4" />
             Новая запись
-          </Link>
-        </Button>
+          </Button>
+        ) : (
+          <Button size="sm" className="gap-1" render={<Link href="/book" />}>
+            <Plus className="h-4 w-4" />
+            Новая запись
+          </Button>
+        )}
       </div>
     </header>
   );
