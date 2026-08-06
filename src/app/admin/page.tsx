@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { format, endOfWeek, startOfWeek } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import {
   formatDateParam,
@@ -45,6 +45,9 @@ export default async function AdminCalendarPage({
   const date = parseCalendarDate(first(query.date));
   const view = parseCalendarView(first(query.view));
 
+  const rangeFrom = view === "week" ? startOfWeek(date, { weekStartsOn: 1 }) : date;
+  const rangeTo = view === "week" ? endOfWeek(date, { weekStartsOn: 1 }) : date;
+
   const [employeeRows, serviceRows, appointments] = await Promise.all([
     prisma.employee.findMany({
       where: { branchId },
@@ -58,7 +61,7 @@ export default async function AdminCalendarPage({
       where: { branchId, isActive: true },
       orderBy: { name: "asc" },
     }),
-    getCalendarAppointments({ branchId, from: date, to: date }),
+    getCalendarAppointments({ branchId, from: rangeFrom, to: rangeTo }),
   ]);
 
   return (

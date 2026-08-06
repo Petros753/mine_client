@@ -12,6 +12,7 @@ import {
 } from "@/lib/calendar";
 import { Topbar } from "@/components/workspace/topbar";
 import { DayCalendar } from "@/components/workspace/day-calendar";
+import { WeekCalendar } from "@/components/workspace/week-calendar";
 import { AppointmentDialog } from "@/components/workspace/appointment-dialog";
 import {
   NewAppointmentDialog,
@@ -69,14 +70,25 @@ export function CalendarWorkspace({
         onCreate={employees.length > 0 ? openBlankSlot : undefined}
       />
 
-      <DayCalendar
-        date={date}
-        today={today}
-        employees={employees}
-        appointments={appointments}
-        onPickSlot={setNewSlot}
-        onPickAppointment={setSelected}
-      />
+      {view === "week" ? (
+        <WeekCalendar
+          date={date}
+          today={today}
+          employees={employees}
+          appointments={appointments}
+          onPickSlot={setNewSlot}
+          onPickAppointment={setSelected}
+        />
+      ) : (
+        <DayCalendar
+          date={date}
+          today={today}
+          employees={employees}
+          appointments={appointments}
+          onPickSlot={setNewSlot}
+          onPickAppointment={setSelected}
+        />
+      )}
 
       <AppointmentDialog
         appointment={selected}
