@@ -24,6 +24,12 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { UserRole } from "@prisma/client";
 
 interface SidebarProps {
@@ -89,7 +95,8 @@ export function Sidebar({
           },
         ]
       : []),
-    { href: "#", icon: Settings, label: "Настройки" },
+    // Раздела настроек пока нет — пункт-заглушка, некликабельный
+    { href: "#", icon: Settings, label: "Настройки", disabled: true },
   ];
 
   /**
@@ -257,7 +264,14 @@ function NavItem({
   active,
   collapsed,
 }: {
-  item: { href: string; icon: React.ElementType; label: string; external?: boolean };
+  item: {
+    href: string;
+    icon: React.ElementType;
+    label: string;
+    external?: boolean;
+    /** Раздел ещё не сделан: показываем неактивным с подсказкой */
+    disabled?: boolean;
+  };
   active: boolean;
   collapsed: boolean;
 }) {
@@ -268,8 +282,36 @@ function NavItem({
     </>
   );
 
+  const baseClassName =
+    "flex items-center gap-3 rounded-md px-2 py-2 text-sm font-medium transition-colors";
+
+  if (item.disabled) {
+    // Тот же приём, что и у кнопки «Месяц» в topbar: пункт видно, но он
+    // явно неактивен и объясняет почему
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <span
+                aria-disabled="true"
+                className={cn(
+                  baseClassName,
+                  "cursor-not-allowed text-sidebar-foreground/40"
+                )}
+              >
+                {content}
+              </span>
+            }
+          />
+          <TooltipContent side="right">В разработке</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
   const className = cn(
-    "flex items-center gap-3 rounded-md px-2 py-2 text-sm font-medium transition-colors",
+    baseClassName,
     active
       ? "bg-sidebar-primary text-sidebar-primary-foreground"
       : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
