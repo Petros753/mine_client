@@ -11,6 +11,8 @@ export interface CredentialsField {
   placeholder?: string;
   minLength?: number;
   hint?: string;
+  /** Начальное значение поля (например, токен в скрытом поле) */
+  defaultValue?: string;
 }
 
 interface CredentialsFormProps {
@@ -37,12 +39,22 @@ export function CredentialsForm({
   // Поля контролируемые: React сбрасывает неконтролируемую форму после
   // выполнения action, и после ошибки пришлось бы вводить всё заново
   const [values, setValues] = useState<Record<string, string>>(() =>
-    Object.fromEntries(fields.map((field) => [field.id, ""]))
+    Object.fromEntries(
+      fields.map((field) => [field.id, field.defaultValue ?? ""])
+    )
   );
 
   return (
     <form action={formAction} className="space-y-5">
-      {fields.map((field) => (
+      {fields.map((field) =>
+        field.type === "hidden" ? (
+          <input
+            key={field.id}
+            type="hidden"
+            name={field.id}
+            value={values[field.id] ?? ""}
+          />
+        ) : (
         <div key={field.id}>
           <label
             htmlFor={field.id}
@@ -73,7 +85,8 @@ export function CredentialsForm({
             </p>
           )}
         </div>
-      ))}
+        )
+      )}
 
       {state.error && (
         <p

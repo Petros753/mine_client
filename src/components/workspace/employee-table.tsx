@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
+import { resendInvitation } from "@/app/admin/employees/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -14,7 +15,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { EmployeeDialog } from "./employee-dialog";
-import { Search, Plus, Pencil, ArrowUpDown } from "lucide-react";
+import { Search, Plus, Pencil, ArrowUpDown, Mail } from "lucide-react";
 
 type Employee = {
   id: string;
@@ -27,6 +28,8 @@ type Employee = {
   branchName: string;
   isBookable: boolean;
   servicesCount: number;
+  invitationPending: boolean;
+  invitationAccepted: boolean;
 };
 
 interface EmployeeTableProps {
@@ -45,6 +48,16 @@ export function EmployeeTable({ employees, branches }: EmployeeTableProps) {
   });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Employee | null>(null);
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  const handleResend = (employeeId: string) => {
+    setResendingId(employeeId);
+    startTransition(async () => {
+      await resendInvitation(employeeId);
+      setResendingId(null);
+    });
+  };
 
   const toggleSort = (key: SortKey) => {
     setSort((prev) => ({
@@ -164,9 +177,13 @@ export function EmployeeTable({ employees, branches }: EmployeeTableProps) {
                   <TableCell>{employee.branchName}</TableCell>
                   <TableCell>{employee.position ?? "—"}</TableCell>
                   <TableCell>
-                    <Badge variant={employee.isBookable ? "default" : "secondary"}>
-                      {employee.isBookable ? "Доступен" : "Не доступен"}
-                    </Badge>
+                    {employee.invitationAccepted ? (
+                      <Badge variant={employee.isBookable ? "default" : "secondary"}>
+                        {employee.isBookable ? "Доступен" : "Не доступен"}
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline">Приглашение отправлено</Badge>
+                    )}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
@@ -178,6 +195,22 @@ export function EmployeeTable({ employees, branches }: EmployeeTableProps) {
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
+                      {!employee.invitationAccepted && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={isPending && resendingId === employee.id}
+                          onClick={() => handleResend(employee.id)}
+                          title="Отправить приглашение повторно"
+                        >
+                          <Mail className="mr-1.5 h-4 w-4" />
+                          {isPending && resendingId === employee.id
+                            ? "Отправляем…"
+                            : employee.invitationPending
+                              ? "Отправить повторно"
+                              : "Отправить приглашение"}
+                        </Button>
+                      )}
                       <Button variant="ghost" size="sm" asChild>
                         <Link href={`/admin/employees/${employee.id}/services`}>
                           Услуги ({employee.servicesCount})

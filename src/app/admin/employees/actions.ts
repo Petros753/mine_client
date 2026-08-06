@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { randomBytes } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/auth";
+import { sendEmployeeInvitation } from "@/lib/invitations";
 import {
   assertBranchBelongsToCompany,
   requireAdminCompanyId,
@@ -12,6 +13,27 @@ import {
 export interface EmployeeFormState {
   error?: string;
   ok?: boolean;
+}
+
+/** Повторная отправка приглашения: создаёт новый токен взамен истёкшего */
+export async function resendInvitation(
+  employeeId: string
+): Promise<EmployeeFormState> {
+  const companyId = await requireAdminCompanyId();
+
+  const employee = await prisma.employee.findFirst({
+    where: { id: employeeId, branch: { companyId } },
+    select: { id: true },
+  });
+
+  if (!employee) {
+    return { error: "Сотрудник не найден" };
+  }
+
+  await sendEmployeeInvitation(employee.id);
+
+  revalidatePath("/admin/employees");
+  return { ok: true };
 }
 
 export async function createEmployee(
@@ -33,6 +55,13 @@ export async function createEmployee(
 
   await assertBranchBelongsToCompany(branchId, companyId);
 
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing) {
+    return { error: "Пользователь с таким email уже существует" };
+  }
+
+  // Случайный нерабочий хэш: сотрудник не сможет войти, пока не задаст
+  // собственный пароль по ссылке из приглашения
   const passwordHash = await hashPassword(randomBytes(32).toString("hex"));
 
   const user = await prisma.user.create({
@@ -47,13 +76,17 @@ export async function createEmployee(
     },
   });
 
-  await prisma.employee.create({
+  const employee = await prisma.employee.create({
     data: {
       userId: user.id,
       branchId,
       position: position || null,
     },
   });
+
+  // Письмо — вспомогательный канал: если отправка не удалась, сотрудник
+  // всё равно создан, приглашение можно переслать из списка сотрудников
+  await sendEmployeeInvitation(employee.id);
 
   revalidatePath("/admin/employees");
   return { ok: true };
