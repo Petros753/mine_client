@@ -121,9 +121,26 @@ model Employee {
   services     EmployeeService[]
   appointments Appointment[]
   schedule     EmployeeSchedule[]
+  invitations  InvitationToken[]
 
   @@index([branchId])
   @@map("employees")
+}
+
+// Приглашение сотрудника: одноразовая ссылка для установки пароля.
+// Пока usedAt = null и expiresAt в будущем — ссылка действительна.
+model InvitationToken {
+  id         String    @id @default(cuid())
+  employeeId String
+  token      String    @unique
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@map("invitation_tokens")
 }
 
 // Индивидуальный график работы сотрудника (переопределяет общий график филиала)
