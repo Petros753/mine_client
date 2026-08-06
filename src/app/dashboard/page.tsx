@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { getDashboardMetrics } from "@/lib/dashboard";
 import { MetricCard } from "@/components/metric-card";
+import { Button } from "@/components/ui/button";
 import {
   getCompanyBranches,
   getCurrentEmployee,
   isAdminOrOwner,
-  requireCompanyId,
   requireSession,
   resolveBranchId,
 } from "@/lib/tenant";
@@ -14,8 +14,6 @@ export const metadata = {
   title: "Дашборд",
 };
 
-// Метрики считаются на каждый запрос: страница зависит от сессии и от данных,
-// которые меняются в течение дня, — кэшировать её на этапе сборки нельзя
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage(
@@ -29,15 +27,14 @@ export default async function DashboardPage(
   const canAccessAdmin = isAdminOrOwner(session);
 
   const employee = canAccessAdmin ? null : await getCurrentEmployee(session.user.id);
-  // Мастер без профиля не может видеть ничего
   if (!canAccessAdmin && !employee) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-zinc-950">
+      <div className="flex flex-1 items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
+          <h1 className="text-2xl font-semibold text-foreground">
             Профиль сотрудника не найден
           </h1>
-          <p className="mt-2 text-zinc-600 dark:text-zinc-400">
+          <p className="mt-2 text-muted-foreground">
             Обратитесь к администратору, чтобы вас добавили в штат.
           </p>
         </div>
@@ -46,7 +43,6 @@ export default async function DashboardPage(
   }
 
   const branches = await getCompanyBranches(companyId);
-  // Мастер видит только свой филиал; админ/владелец — выбирают из всех
   const allowedBranchIds = employee ? [employee.branchId] : branches.map((b) => b.id);
   const requestedBranchId = searchParams.branchId;
   const branchId = employee
@@ -55,23 +51,18 @@ export default async function DashboardPage(
 
   if (!branchId || !allowedBranchIds.includes(branchId)) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-zinc-950">
+      <div className="flex flex-1 items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
-            Нет филиалов
-          </h1>
-          <p className="mt-2 text-zinc-600 dark:text-zinc-400">
+          <h1 className="text-2xl font-semibold text-foreground">Нет филиалов</h1>
+          <p className="mt-2 text-muted-foreground">
             {canAccessAdmin
               ? "Создайте первый филиал, чтобы увидеть дашборд."
               : "Для вас не назначен филиал."}
           </p>
           {canAccessAdmin && (
-            <Link
-              href="/admin/branches/new"
-              className="mt-6 inline-block rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
-            >
-              Создать филиал
-            </Link>
+            <Button asChild className="mt-6">
+              <Link href="/admin/branches/new">Создать филиал</Link>
+            </Button>
           )}
         </div>
       </div>
@@ -85,59 +76,33 @@ export default async function DashboardPage(
   const currentBranch = branches.find((branch) => branch.id === branchId);
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <header className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-          <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
-            Дашборд
-          </h1>
-          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-            {employee
-              ? "Ваши показатели за сегодня"
-              : "Ключевые показатели за сегодня"}
+    <>
+      <header className="flex h-14 items-center justify-between border-b border-border bg-card px-4">
+        <div>
+          <h1 className="text-sm font-semibold text-foreground">Дашборд</h1>
+          <p className="text-xs text-muted-foreground">
+            {employee ? "Ваши показатели за сегодня" : "Ключевые показатели за сегодня"}
             {currentBranch ? ` · ${currentBranch.name}` : ""}
           </p>
         </div>
+        {canAccessAdmin && branches.length > 1 && (
+          <div className="flex items-center gap-2">
+            {branches.map((branch) => (
+              <Button
+                key={branch.id}
+                variant={branch.id === branchId ? "secondary" : "ghost"}
+                size="sm"
+                asChild
+              >
+                <Link href={`/dashboard?branchId=${branch.id}`}>{branch.name}</Link>
+              </Button>
+            ))}
+          </div>
+        )}
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-          {canAccessAdmin ? (
-            <Link
-              href="/admin"
-              className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
-            >
-              ← В админку
-            </Link>
-          ) : (
-            <Link
-              href="/my-appointments"
-              className="text-sm font-medium text-zinc-900 hover:text-zinc-700 dark:text-zinc-50 dark:hover:text-zinc-300"
-            >
-              Мои записи →
-            </Link>
-          )}
-
-          {canAccessAdmin && branches.length > 1 && (
-            <div className="flex flex-wrap gap-2">
-              {branches.map((branch) => (
-                <Link
-                  key={branch.id}
-                  href={`/dashboard?branchId=${branch.id}`}
-                  className={`rounded-md px-3 py-1 text-sm ${
-                    branch.id === branchId
-                      ? "bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900"
-                      : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300"
-                  }`}
-                >
-                  {branch.name}
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <main className="flex-1 overflow-auto p-6">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <MetricCard
             title="Записи сегодня"
             value={metrics.todayAppointments}
@@ -170,6 +135,6 @@ export default async function DashboardPage(
           />
         </div>
       </main>
-    </div>
+    </>
   );
 }
