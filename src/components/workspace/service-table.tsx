@@ -52,7 +52,7 @@ export function ServiceTable({ services, branches }: ServiceTableProps) {
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase();
-    let rows = services.filter(
+    const rows = services.filter(
       (s) =>
         s.name.toLowerCase().includes(q) ||
         (s.description?.toLowerCase().includes(q) ?? false) ||

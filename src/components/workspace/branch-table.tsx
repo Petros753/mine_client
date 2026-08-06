@@ -47,7 +47,7 @@ export function BranchTable({ branches }: BranchTableProps) {
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase();
-    let rows = branches.filter(
+    const rows = branches.filter(
       (b) =>
         b.name.toLowerCase().includes(q) ||
         (b.address?.toLowerCase().includes(q) ?? false) ||

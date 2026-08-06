@@ -55,7 +55,7 @@ export function EmployeeTable({ employees, branches }: EmployeeTableProps) {
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase();
-    let rows = employees.filter(
+    const rows = employees.filter(
       (e) =>
         `${e.firstName} ${e.lastName ?? ""}`.toLowerCase().includes(q) ||
         e.email.toLowerCase().includes(q) ||
