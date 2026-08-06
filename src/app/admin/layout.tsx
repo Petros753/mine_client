@@ -40,6 +40,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           firstName: e.user.firstName ?? "",
           lastName: e.user.lastName,
         }))}
+        branches={branches}
         companyName={branches[0]?.name}
         onSignOut={handleSignOut}
       />

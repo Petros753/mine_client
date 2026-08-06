@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -33,15 +33,24 @@ interface SidebarProps {
     role: UserRole;
   };
   employees?: Array<{ id: string; firstName: string; lastName?: string | null }>;
+  /** Филиалы, доступные пользователю — из них собирается ссылка на виджет */
+  branches?: Array<{ id: string; name: string }>;
   companyName?: string;
   onSignOut: () => void;
 }
 
-export function Sidebar({ user, employees = [], companyName, onSignOut }: SidebarProps) {
+export function Sidebar({
+  user,
+  employees = [],
+  branches = [],
+  companyName,
+  onSignOut,
+}: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [monthOffset, setMonthOffset] = useState(0);
   const [employeesOpen, setEmployeesOpen] = useState(false);
   const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const today = new Date();
   const currentMonth = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
@@ -51,6 +60,13 @@ export function Sidebar({ user, employees = [], companyName, onSignOut }: Sideba
   });
 
   const isAdmin = user.role === "OWNER" || user.role === "ADMIN";
+
+  // Виджет живёт по адресу /book/[branchId] — без филиала ссылка ведёт в 404,
+  // поэтому берём филиал из адреса (его переключает topbar), иначе первый
+  const requestedBranchId = searchParams.get("branchId");
+  const bookingBranchId =
+    branches.find((branch) => branch.id === requestedBranchId)?.id ??
+    branches[0]?.id;
 
   const navItems = [
     ...(isAdmin
@@ -62,9 +78,31 @@ export function Sidebar({ user, employees = [], companyName, onSignOut }: Sideba
         ]
       : [{ href: "/my-appointments", icon: CalendarDays, label: "Мой календарь" }]),
     { href: "/dashboard", icon: BarChart3, label: "Аналитика" },
-    { href: "/book", icon: Globe, label: "Онлайн-запись", external: true },
+    // Пока нет ни одного филиала, вести некуда — пункт скрываем
+    ...(bookingBranchId
+      ? [
+          {
+            href: `/book/${bookingBranchId}`,
+            icon: Globe,
+            label: "Онлайн-запись",
+            external: true,
+          },
+        ]
+      : []),
     { href: "#", icon: Settings, label: "Настройки" },
   ];
+
+  /**
+   * Активен только самый длинный подходящий пункт: иначе «Журнал записей»
+   * с href="/admin" подсвечивался бы на любом /admin/* вместе с разделом.
+   */
+  const activeHref = navItems
+    .filter((item) => !item.external && item.href.startsWith("/"))
+    .filter(
+      (item) =>
+        pathname === item.href || pathname.startsWith(`${item.href}/`)
+    )
+    .sort((a, b) => b.href.length - a.href.length)[0]?.href;
 
   return (
     <aside
@@ -148,7 +186,12 @@ export function Sidebar({ user, employees = [], companyName, onSignOut }: Sideba
 
       <nav className="flex-1 space-y-1 overflow-y-auto px-2 py-2">
         {navItems.map((item) => (
-          <NavItem key={item.href} item={item} active={pathname === item.href || pathname.startsWith(`${item.href}/`)} collapsed={collapsed} />
+          <NavItem
+            key={item.href}
+            item={item}
+            active={item.href === activeHref}
+            collapsed={collapsed}
+          />
         ))}
 
         {isAdmin && !collapsed && employees.length > 0 && (
