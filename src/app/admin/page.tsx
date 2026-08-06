@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { auth } from "@/lib/auth";
+import { requireAdminOrOwner } from "@/lib/tenant";
 import { SignOutButton } from "@/components/sign-out-button";
 
 export default async function AdminPage() {
-  const session = await auth();
+  const session = await requireAdminOrOwner();
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">

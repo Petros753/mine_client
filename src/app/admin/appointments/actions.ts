@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { isAppointmentStatus, isTransitionAllowed } from "@/lib/appointments";
 import { notifyClient } from "@/lib/notifications";
-import { requireCompanyId } from "@/lib/tenant";
+import { requireAdminCompanyId } from "@/lib/tenant";
 
 /**
  * Смена статуса записи из журнала.
@@ -15,7 +15,7 @@ import { requireCompanyId } from "@/lib/tenant";
 export async function updateAppointmentStatus(formData: FormData) {
   // Server Action доступен по прямому POST, поэтому проверяем сессию здесь,
   // а не полагаемся на защиту страницы в proxy
-  const companyId = await requireCompanyId();
+  const companyId = await requireAdminCompanyId();
 
   const appointmentId = String(formData.get("appointmentId") ?? "");
   const nextStatus = String(formData.get("status") ?? "");

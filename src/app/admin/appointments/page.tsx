@@ -19,7 +19,7 @@ import {
 import {
   NO_BRANCHES_HINT,
   getCompanyBranches,
-  requireCompanyId,
+  requireAdminCompanyId,
   resolveBranchId,
 } from "@/lib/tenant";
 import { updateAppointmentStatus } from "./actions";
@@ -42,7 +42,7 @@ export default async function AppointmentsPage({
   const first = (value: string | string[] | undefined) =>
     Array.isArray(value) ? value[0] : value;
 
-  const companyId = await requireCompanyId();
+  const companyId = await requireAdminCompanyId();
   const branches = await getCompanyBranches(companyId);
   const branchId = resolveBranchId(branches, first(query.branchId));
 

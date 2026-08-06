@@ -3,7 +3,10 @@ import { getDashboardMetrics } from "@/lib/dashboard";
 import { MetricCard } from "@/components/metric-card";
 import {
   getCompanyBranches,
+  getCurrentEmployee,
+  isAdminOrOwner,
   requireCompanyId,
+  requireSession,
   resolveBranchId,
 } from "@/lib/tenant";
 
@@ -21,11 +24,36 @@ export default async function DashboardPage(
   }
 ) {
   const searchParams = await props.searchParams;
-  const companyId = await requireCompanyId();
-  const branches = await getCompanyBranches(companyId);
-  const branchId = resolveBranchId(branches, searchParams.branchId);
+  const session = await requireSession();
+  const companyId = session.user.companyId;
+  const canAccessAdmin = isAdminOrOwner(session);
 
-  if (!branchId) {
+  const employee = canAccessAdmin ? null : await getCurrentEmployee(session.user.id);
+  // Мастер без профиля не может видеть ничего
+  if (!canAccessAdmin && !employee) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-zinc-950">
+        <div className="text-center">
+          <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
+            Профиль сотрудника не найден
+          </h1>
+          <p className="mt-2 text-zinc-600 dark:text-zinc-400">
+            Обратитесь к администратору, чтобы вас добавили в штат.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const branches = await getCompanyBranches(companyId);
+  // Мастер видит только свой филиал; админ/владелец — выбирают из всех
+  const allowedBranchIds = employee ? [employee.branchId] : branches.map((b) => b.id);
+  const requestedBranchId = searchParams.branchId;
+  const branchId = employee
+    ? employee.branchId
+    : resolveBranchId(branches, requestedBranchId);
+
+  if (!branchId || !allowedBranchIds.includes(branchId)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-zinc-950">
         <div className="text-center">
@@ -33,20 +61,27 @@ export default async function DashboardPage(
             Нет филиалов
           </h1>
           <p className="mt-2 text-zinc-600 dark:text-zinc-400">
-            Создайте первый филиал, чтобы увидеть дашборд.
+            {canAccessAdmin
+              ? "Создайте первый филиал, чтобы увидеть дашборд."
+              : "Для вас не назначен филиал."}
           </p>
-          <Link
-            href="/admin/branches/new"
-            className="mt-6 inline-block rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
-          >
-            Создать филиал
-          </Link>
+          {canAccessAdmin && (
+            <Link
+              href="/admin/branches/new"
+              className="mt-6 inline-block rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+            >
+              Создать филиал
+            </Link>
+          )}
         </div>
       </div>
     );
   }
 
-  const metrics = await getDashboardMetrics(branchId);
+  const metrics = await getDashboardMetrics({
+    branchId,
+    employeeId: employee?.id,
+  });
   const currentBranch = branches.find((branch) => branch.id === branchId);
 
   return (
@@ -57,7 +92,9 @@ export default async function DashboardPage(
             Дашборд
           </h1>
           <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-            Ключевые показатели за сегодня
+            {employee
+              ? "Ваши показатели за сегодня"
+              : "Ключевые показатели за сегодня"}
             {currentBranch ? ` · ${currentBranch.name}` : ""}
           </p>
         </div>
@@ -65,14 +102,18 @@ export default async function DashboardPage(
 
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-          <Link
-            href="/admin"
-            className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
-          >
-            ← В админку
-          </Link>
+          {canAccessAdmin ? (
+            <Link
+              href="/admin"
+              className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
+            >
+              ← В админку
+            </Link>
+          ) : (
+            <span />
+          )}
 
-          {branches.length > 1 && (
+          {canAccessAdmin && branches.length > 1 && (
             <div className="flex flex-wrap gap-2">
               {branches.map((branch) => (
                 <Link

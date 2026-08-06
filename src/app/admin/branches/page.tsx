@@ -1,9 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
-import { requireCompanyId } from "@/lib/tenant";
+import { requireAdminCompanyId } from "@/lib/tenant";
 
 export default async function BranchesPage() {
-  const companyId = await requireCompanyId();
+  const companyId = await requireAdminCompanyId();
   const branches = await prisma.branch.findMany({
     where: { companyId },
     include: { company: true },

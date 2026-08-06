@@ -1,12 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireCompanyId } from "@/lib/tenant";
+import { requireAdminCompanyId } from "@/lib/tenant";
 
 async function toggleService(employeeId: string, serviceId: string, enabled: boolean) {
   "use server";
 
-  const companyId = await requireCompanyId();
+  const companyId = await requireAdminCompanyId();
 
   // Оба id приходят с клиента: проверяем, что сотрудник и услуга — свои
   const [employee, service] = await Promise.all([
@@ -47,7 +47,7 @@ export default async function EmployeeServicesPage(
   }
 ) {
   const params = await props.params;
-  const companyId = await requireCompanyId();
+  const companyId = await requireAdminCompanyId();
   const employee = await prisma.employee.findFirst({
     where: { id: params.id, branch: { companyId } },
     include: {

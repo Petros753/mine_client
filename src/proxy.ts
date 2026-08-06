@@ -5,7 +5,24 @@ import { authConfig } from "@/lib/auth.config";
 // проверка JWT-сессии — провайдеры (а с ними Prisma и bcrypt) не нужны.
 const { auth } = NextAuth(authConfig);
 
-export default auth;
+export default auth((request) => {
+  const { nextUrl, auth: session } = request;
+
+  // Неавторизованных отправляем на логин
+  if (!session?.user) {
+    return Response.redirect(new URL("/login", nextUrl));
+  }
+
+  // Сотрудникам (мастерам) запрещён доступ в админ-панель
+  if (
+    session.user.role === "EMPLOYEE" &&
+    (nextUrl.pathname === "/admin" || nextUrl.pathname.startsWith("/admin/"))
+  ) {
+    return Response.redirect(new URL("/dashboard", nextUrl));
+  }
+
+  return;
+});
 
 export const config = {
   matcher: ["/admin", "/admin/:path*", "/dashboard", "/dashboard/:path*"],

@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireCompanyId } from "@/lib/tenant";
+import { requireAdminCompanyId } from "@/lib/tenant";
 
 async function createBranch(formData: FormData) {
   "use server";
 
-  const companyId = await requireCompanyId();
+  const companyId = await requireAdminCompanyId();
 
   const name = formData.get("name") as string;
   const address = formData.get("address") as string;
@@ -24,7 +24,7 @@ async function createBranch(formData: FormData) {
 }
 
 export default async function NewBranchPage() {
-  await requireCompanyId();
+  await requireAdminCompanyId();
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">

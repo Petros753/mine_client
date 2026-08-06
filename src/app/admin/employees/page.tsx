@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
-import { getCompanyBranches, requireCompanyId } from "@/lib/tenant";
+import { getCompanyBranches, requireAdminCompanyId } from "@/lib/tenant";
 
 export default async function EmployeesPage(
   props: {
@@ -8,7 +8,7 @@ export default async function EmployeesPage(
   }
 ) {
   const searchParams = await props.searchParams;
-  const companyId = await requireCompanyId();
+  const companyId = await requireAdminCompanyId();
   const branches = await getCompanyBranches(companyId);
 
   // Чужой филиал в адресе не должен ничего показывать — фильтруем по компании

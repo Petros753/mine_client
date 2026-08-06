@@ -3,14 +3,14 @@ import { prisma } from "@/lib/prisma";
 import {
   assertBranchBelongsToCompany,
   getCompanyBranches,
-  requireCompanyId,
+  requireAdminCompanyId,
   resolveBranchId,
 } from "@/lib/tenant";
 
 async function createService(formData: FormData) {
   "use server";
 
-  const companyId = await requireCompanyId();
+  const companyId = await requireAdminCompanyId();
 
   const branchId = formData.get("branchId") as string;
   await assertBranchBelongsToCompany(branchId, companyId);
@@ -39,7 +39,7 @@ export default async function NewServicePage(
   }
 ) {
   const searchParams = await props.searchParams;
-  const companyId = await requireCompanyId();
+  const companyId = await requireAdminCompanyId();
   const branches = await getCompanyBranches(companyId);
   const defaultBranchId = resolveBranchId(branches, searchParams.branchId);
 

@@ -10,12 +10,20 @@ export interface DashboardMetrics {
   totalEmployees: number;
 }
 
+export interface DashboardFilters {
+  branchId: string;
+  employeeId?: string;
+}
+
 export async function getDashboardMetrics(
-  branchId: string
+  filters: DashboardFilters
 ): Promise<DashboardMetrics> {
+  const { branchId, employeeId } = filters;
   const today = new Date();
   const dayStart = startOfDay(today);
   const dayEnd = endOfDay(today);
+
+  const employeeFilter = employeeId ? { employeeId } : {};
 
   const [
     todayAppointments,
@@ -28,6 +36,7 @@ export async function getDashboardMetrics(
     prisma.appointment.count({
       where: {
         branchId,
+        ...employeeFilter,
         startAt: { gte: dayStart, lte: dayEnd },
         status: { notIn: ["CANCELLED", "NO_SHOW"] },
       },
@@ -36,6 +45,7 @@ export async function getDashboardMetrics(
     prisma.appointment.aggregate({
       where: {
         branchId,
+        ...employeeFilter,
         startAt: { gte: dayStart, lte: dayEnd },
         status: { in: ["CONFIRMED", "COMPLETED"] },
       },
@@ -45,6 +55,7 @@ export async function getDashboardMetrics(
     prisma.appointment.count({
       where: {
         branchId,
+        ...employeeFilter,
         startAt: { gte: today, lte: new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000) },
         status: { in: ["PENDING", "CONFIRMED"] },
       },
@@ -63,6 +74,7 @@ export async function getDashboardMetrics(
   const busySlots = await prisma.appointment.count({
     where: {
       branchId,
+      ...employeeFilter,
       startAt: { gte: dayStart, lte: dayEnd },
       status: { notIn: ["CANCELLED", "NO_SHOW"] },
     },
