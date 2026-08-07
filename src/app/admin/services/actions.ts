@@ -113,12 +113,13 @@ export async function updateService(
     return { error: ingredients.error };
   }
 
-  // Товары технологической карты должны принадлежать выбранному филиалу —
-  // тот же товар из другого филиала списывать бессмысленно
+  // Товары тех.карты должны быть на складе выбранного филиала — тот же
+  // товар из другого филиала списывать бессмысленно. Склад товара конкретно
+  // не важен: любые склады филиала (расходники/товары) годятся.
   if (ingredients.length > 0) {
     const ids = ingredients.map((i) => i.inventoryItemId);
     const validItems = await prisma.inventoryItem.findMany({
-      where: { id: { in: ids }, branchId },
+      where: { id: { in: ids }, warehouse: { branchId } },
       select: { id: true },
     });
     if (validItems.length !== ids.length) {

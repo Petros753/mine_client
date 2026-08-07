@@ -100,8 +100,9 @@ async function consumeIngredients(
     where: {
       serviceId,
       // Материалы из другого филиала списывать нельзя — тех.карту привязали
-      // к филиалу услуги, но подстраховываемся, если данные разошлись
-      inventoryItem: { branchId },
+      // к филиалу услуги, но подстраховываемся, если данные разошлись.
+      // Склад товара внутри филиала не важен: любой склад филиала подходит.
+      inventoryItem: { warehouse: { branchId } },
     },
     select: { inventoryItemId: true, quantityUsed: true },
   });

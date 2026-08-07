@@ -2,10 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import {
-  assertBranchBelongsToCompany,
-  requireAdminCompanyId,
-} from "@/lib/tenant";
+import { requireAdminCompanyId } from "@/lib/tenant";
 
 export interface InventoryFormState {
   error?: string;
@@ -22,21 +19,39 @@ function parseDecimal(raw: FormDataEntryValue | null): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+/**
+ * Склад для мутации: id пришёл из формы, проверяем принадлежность компании
+ * и возвращаем сам склад (нужен branchId для журнала транзакций).
+ */
+async function requireWarehouse(
+  warehouseId: string,
+  companyId: string
+): Promise<{ id: string; branchId: string }> {
+  const warehouse = await prisma.warehouse.findFirst({
+    where: { id: warehouseId, branch: { companyId } },
+    select: { id: true, branchId: true },
+  });
+  if (!warehouse) {
+    throw new Error("Склад не найден в вашей компании");
+  }
+  return warehouse;
+}
+
 export async function createInventoryItem(
   _prevState: InventoryFormState,
   formData: FormData
 ): Promise<InventoryFormState> {
   const companyId = await requireAdminCompanyId();
 
-  const branchId = String(formData.get("branchId") ?? "");
+  const warehouseId = String(formData.get("warehouseId") ?? "");
   const name = String(formData.get("name") ?? "").trim();
   const sku = String(formData.get("sku") ?? "").trim();
   const unit = String(formData.get("unit") ?? "").trim();
   const costPrice = parseDecimal(formData.get("costPrice"));
   const minQuantity = parseDecimal(formData.get("minQuantity"));
 
-  if (!branchId || !name || !unit || costPrice === null) {
-    return { error: "Заполните название, единицу и себестоимость" };
+  if (!warehouseId || !name || !unit || costPrice === null) {
+    return { error: "Заполните склад, название, единицу и себестоимость" };
   }
   if (!ALLOWED_UNITS.includes(unit as (typeof ALLOWED_UNITS)[number])) {
     return { error: "Некорректная единица измерения" };
@@ -48,13 +63,13 @@ export async function createInventoryItem(
     return { error: "Минимальный остаток не может быть отрицательным" };
   }
 
-  await assertBranchBelongsToCompany(branchId, companyId);
+  await requireWarehouse(warehouseId, companyId);
 
   // quantity намеренно не принимаем: остаток заводится через «Пополнить»,
   // чтобы приход всегда был отражён в журнале InventoryTransaction.
   await prisma.inventoryItem.create({
     data: {
-      branchId,
+      warehouseId,
       name,
       sku: sku || null,
       unit,
@@ -74,7 +89,7 @@ export async function updateInventoryItem(
   const companyId = await requireAdminCompanyId();
 
   const itemId = String(formData.get("itemId") ?? "");
-  const branchId = String(formData.get("branchId") ?? "");
+  const warehouseId = String(formData.get("warehouseId") ?? "");
   const name = String(formData.get("name") ?? "").trim();
   const sku = String(formData.get("sku") ?? "").trim();
   const unit = String(formData.get("unit") ?? "").trim();
@@ -82,7 +97,7 @@ export async function updateInventoryItem(
   const minQuantity = parseDecimal(formData.get("minQuantity"));
   const isActive = formData.get("isActive") === "on";
 
-  if (!itemId || !branchId || !name || !unit || costPrice === null) {
+  if (!itemId || !warehouseId || !name || !unit || costPrice === null) {
     return { error: "Некорректные параметры" };
   }
   if (!ALLOWED_UNITS.includes(unit as (typeof ALLOWED_UNITS)[number])) {
@@ -95,10 +110,10 @@ export async function updateInventoryItem(
     return { error: "Минимальный остаток не может быть отрицательным" };
   }
 
-  await assertBranchBelongsToCompany(branchId, companyId);
+  await requireWarehouse(warehouseId, companyId);
 
   const item = await prisma.inventoryItem.findFirst({
-    where: { id: itemId, branch: { companyId } },
+    where: { id: itemId, warehouse: { branch: { companyId } } },
     select: { id: true },
   });
 
@@ -109,7 +124,7 @@ export async function updateInventoryItem(
   await prisma.inventoryItem.update({
     where: { id: itemId },
     data: {
-      branchId,
+      warehouseId,
       name,
       sku: sku || null,
       unit,
@@ -147,8 +162,8 @@ export async function restockInventoryItem(
   }
 
   const item = await prisma.inventoryItem.findFirst({
-    where: { id: itemId, branch: { companyId } },
-    select: { id: true, branchId: true },
+    where: { id: itemId, warehouse: { branch: { companyId } } },
+    select: { id: true, warehouse: { select: { branchId: true } } },
   });
 
   if (!item) {
@@ -159,7 +174,7 @@ export async function restockInventoryItem(
     prisma.inventoryTransaction.create({
       data: {
         inventoryItemId: item.id,
-        branchId: item.branchId,
+        branchId: item.warehouse.branchId,
         type: "RESTOCK",
         quantity,
         comment: comment || null,
@@ -171,6 +186,81 @@ export async function restockInventoryItem(
     }),
   ]);
 
+  revalidatePath("/admin/inventory");
+  return { ok: true };
+}
+
+// -----------------------------------------------------
+// Склады (Warehouse)
+// -----------------------------------------------------
+
+export async function createWarehouse(
+  _prevState: InventoryFormState,
+  formData: FormData
+): Promise<InventoryFormState> {
+  const companyId = await requireAdminCompanyId();
+
+  const branchId = String(formData.get("branchId") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+
+  if (!branchId || !name) {
+    return { error: "Заполните филиал и название склада" };
+  }
+
+  const branch = await prisma.branch.findFirst({
+    where: { id: branchId, companyId },
+    select: { id: true },
+  });
+  if (!branch) {
+    return { error: "Филиал не найден" };
+  }
+
+  await prisma.warehouse.create({
+    data: {
+      branchId,
+      name,
+      description: description || null,
+    },
+  });
+
+  revalidatePath("/admin/inventory/warehouses");
+  revalidatePath("/admin/inventory");
+  return { ok: true };
+}
+
+export async function updateWarehouse(
+  _prevState: InventoryFormState,
+  formData: FormData
+): Promise<InventoryFormState> {
+  const companyId = await requireAdminCompanyId();
+
+  const warehouseId = String(formData.get("warehouseId") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+
+  if (!warehouseId || !name) {
+    return { error: "Некорректные параметры" };
+  }
+
+  const warehouse = await prisma.warehouse.findFirst({
+    where: { id: warehouseId, branch: { companyId } },
+    select: { id: true },
+  });
+
+  if (!warehouse) {
+    return { error: "Склад не найден" };
+  }
+
+  await prisma.warehouse.update({
+    where: { id: warehouseId },
+    data: {
+      name,
+      description: description || null,
+    },
+  });
+
+  revalidatePath("/admin/inventory/warehouses");
   revalidatePath("/admin/inventory");
   return { ok: true };
 }

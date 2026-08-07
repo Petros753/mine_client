@@ -13,13 +13,21 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
+interface WarehouseOption {
+  id: string;
+  name: string;
+  branchId: string;
+  branchName: string;
+}
+
 interface InventoryDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  branches: Array<{ id: string; name: string }>;
+  warehouses: WarehouseOption[];
+  defaultWarehouseId?: string | null;
   item?: {
     id: string;
-    branchId: string;
+    warehouseId: string;
     name: string;
     sku?: string | null;
     unit: string;
@@ -32,7 +40,8 @@ interface InventoryDialogProps {
 export function InventoryDialog({
   open,
   onOpenChange,
-  branches,
+  warehouses,
+  defaultWarehouseId,
   item,
 }: InventoryDialogProps) {
   const isEdit = !!item;
@@ -51,7 +60,8 @@ export function InventoryDialog({
 
         <InventoryForm
           action={isEdit ? updateInventoryItem : createInventoryItem}
-          branches={branches}
+          warehouses={warehouses}
+          defaultWarehouseId={defaultWarehouseId}
           item={item}
           onSuccess={() => onOpenChange(false)}
         />

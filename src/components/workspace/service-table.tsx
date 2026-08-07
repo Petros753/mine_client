@@ -32,6 +32,7 @@ interface InventoryOption {
   name: string;
   unit: string;
   branchId: string;
+  warehouseName: string;
 }
 
 interface ServiceTableProps {

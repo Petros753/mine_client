@@ -24,6 +24,7 @@ interface InventoryOption {
   name: string;
   unit: string;
   branchId: string;
+  warehouseName: string;
 }
 
 interface IngredientRow {
@@ -271,12 +272,12 @@ export function ServiceForm({
                       <SelectContent>
                         {branchInventory.map((it) => (
                           <SelectItem key={it.id} value={it.id}>
-                            {it.name} ({it.unit})
+                            {it.name} ({it.unit}) · {it.warehouseName}
                           </SelectItem>
                         ))}
                         {orphaned && (
                           <SelectItem value={orphaned.id}>
-                            {orphaned.name} ({orphaned.unit}) — другой филиал
+                            {orphaned.name} ({orphaned.unit}) · {orphaned.warehouseName} — другой филиал
                           </SelectItem>
                         )}
                       </SelectContent>

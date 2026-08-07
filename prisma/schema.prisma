@@ -54,7 +54,7 @@ model Branch {
   clients     Client[]
   appointments Appointment[]
   workingHours WorkingHours[]
-  inventoryItems InventoryItem[]
+  warehouses   Warehouse[]
   inventoryTransactions InventoryTransaction[]
 
   @@index([companyId])
@@ -396,9 +396,27 @@ model ClientSubscription {
 // 8. СКЛАД
 // -----------------------------------------------------
 
-model InventoryItem {
+// Склад — физическая/логическая группировка товаров внутри филиала.
+// У филиала может быть несколько складов ("Расходники", "Товары" и т.п.).
+// Два стартовых склада создаются автоматически при создании филиала.
+model Warehouse {
   id          String   @id @default(cuid())
   branchId    String
+  name        String   // "Расходники", "Товары"
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  branch Branch          @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  items  InventoryItem[]
+
+  @@index([branchId])
+  @@map("warehouses")
+}
+
+model InventoryItem {
+  id          String   @id @default(cuid())
+  warehouseId String
   name        String
   sku         String?  // артикул, опционально
   unit        String   // "шт", "мл", "г"
@@ -411,11 +429,11 @@ model InventoryItem {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  branch       Branch                 @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  warehouse    Warehouse              @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
   ingredients  ServiceIngredient[]
   transactions InventoryTransaction[]
 
-  @@index([branchId])
+  @@index([warehouseId])
   @@map("inventory_items")
 }
 

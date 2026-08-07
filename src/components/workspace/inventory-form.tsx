@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,15 +21,24 @@ export interface InventoryFormState {
 /** Единицы измерения — держим синхронно с ALLOWED_UNITS в actions */
 const UNIT_OPTIONS = ["шт", "мл", "г", "л", "кг"] as const;
 
+interface WarehouseOption {
+  id: string;
+  name: string;
+  branchId: string;
+  branchName: string;
+}
+
 interface InventoryFormProps {
   action: (
     prevState: InventoryFormState,
     formData: FormData
   ) => Promise<InventoryFormState>;
-  branches: Array<{ id: string; name: string }>;
+  warehouses: WarehouseOption[];
+  /** Склад по умолчанию для формы создания (обычно — активный на странице) */
+  defaultWarehouseId?: string | null;
   item?: {
     id: string;
-    branchId: string;
+    warehouseId: string;
     name: string;
     sku?: string | null;
     unit: string;
@@ -42,34 +51,47 @@ interface InventoryFormProps {
 
 export function InventoryForm({
   action,
-  branches,
+  warehouses,
+  defaultWarehouseId,
   item,
   onSuccess,
 }: InventoryFormProps) {
   const isEdit = !!item;
   const [state, formAction, pending] = useActionState(action, {});
 
+  const [warehouseId, setWarehouseId] = useState<string>(
+    item?.warehouseId ?? defaultWarehouseId ?? warehouses[0]?.id ?? ""
+  );
+
   useEffect(() => {
     if (state.ok && onSuccess) onSuccess();
   }, [state.ok, onSuccess]);
+
+  // Если у компании несколько филиалов — рядом со складом показываем филиал,
+  // чтобы админ не перепутал одноимённые склады из разных филиалов
+  const multipleBranches =
+    new Set(warehouses.map((w) => w.branchId)).size > 1;
 
   return (
     <form action={formAction} className="space-y-4">
       {isEdit && <input type="hidden" name="itemId" value={item.id} />}
 
       <div className="space-y-1.5">
-        <Label htmlFor="branchId">Филиал *</Label>
+        <Label htmlFor="warehouseId">Склад *</Label>
         <Select
-          name="branchId"
-          defaultValue={item?.branchId ?? branches[0]?.id}
+          name="warehouseId"
+          value={warehouseId}
+          onValueChange={(v) => setWarehouseId(v ?? "")}
+          disabled={warehouses.length === 0}
         >
           <SelectTrigger>
-            <SelectValue placeholder="Выберите филиал" />
+            <SelectValue placeholder="Выберите склад" />
           </SelectTrigger>
           <SelectContent>
-            {branches.map((branch) => (
-              <SelectItem key={branch.id} value={branch.id}>
-                {branch.name}
+            {warehouses.map((w) => (
+              <SelectItem key={w.id} value={w.id}>
+                {w.name}
+                {multipleBranches ? ` · ${w.branchName}` : ""}
               </SelectItem>
             ))}
           </SelectContent>
@@ -169,7 +191,7 @@ export function InventoryForm({
       )}
 
       <div className="flex justify-end gap-2">
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" disabled={pending || warehouses.length === 0}>
           {pending ? "Сохраняем…" : isEdit ? "Сохранить" : "Создать"}
         </Button>
       </div>

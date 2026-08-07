@@ -14,8 +14,13 @@ export default async function ServicesPage() {
       orderBy: { createdAt: "desc" },
     }),
     prisma.inventoryItem.findMany({
-      where: { branch: { companyId }, isActive: true },
-      select: { id: true, name: true, unit: true, branchId: true },
+      where: { warehouse: { branch: { companyId } }, isActive: true },
+      select: {
+        id: true,
+        name: true,
+        unit: true,
+        warehouse: { select: { id: true, name: true, branchId: true } },
+      },
       orderBy: { name: "asc" },
     }),
   ]);
@@ -39,7 +44,8 @@ export default async function ServicesPage() {
     id: i.id,
     name: i.name,
     unit: i.unit,
-    branchId: i.branchId,
+    branchId: i.warehouse.branchId,
+    warehouseName: i.warehouse.name,
   }));
 
   return (
