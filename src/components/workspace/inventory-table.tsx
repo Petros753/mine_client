@@ -13,7 +13,8 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { InventoryDialog } from "./inventory-dialog";
-import { Search, Plus, Pencil, ArrowUpDown } from "lucide-react";
+import { InventoryRestockDialog } from "./inventory-restock-dialog";
+import { Search, Plus, Pencil, ArrowUpDown, PackagePlus } from "lucide-react";
 
 type InventoryItem = {
   id: string;
@@ -49,6 +50,8 @@ export function InventoryTable({ items, branches }: InventoryTableProps) {
   });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<InventoryItem | null>(null);
+  const [restockOpen, setRestockOpen] = useState(false);
+  const [restockItemId, setRestockItemId] = useState<string | null>(null);
 
   const toggleSort = (key: SortKey) => {
     setSort((prev) => ({
@@ -87,6 +90,18 @@ export function InventoryTable({ items, branches }: InventoryTableProps) {
     setDialogOpen(true);
   };
 
+  const openRestock = (itemId?: string) => {
+    setRestockItemId(itemId ?? null);
+    setRestockOpen(true);
+  };
+
+  const restockItems = items.map((i) => ({
+    id: i.id,
+    name: i.name,
+    unit: i.unit,
+    branchName: i.branchName,
+  }));
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -99,10 +114,20 @@ export function InventoryTable({ items, branches }: InventoryTableProps) {
             className="pl-9"
           />
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="mr-2 h-4 w-4" />
-          Новый товар
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => openRestock()}
+            disabled={items.length === 0}
+          >
+            <PackagePlus className="mr-2 h-4 w-4" />
+            Пополнить
+          </Button>
+          <Button onClick={openCreate}>
+            <Plus className="mr-2 h-4 w-4" />
+            Новый товар
+          </Button>
+        </div>
       </div>
 
       <div className="rounded-md border">
@@ -199,14 +224,24 @@ export function InventoryTable({ items, branches }: InventoryTableProps) {
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => openEdit(item)}
-                        title="Редактировать"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openRestock(item.id)}
+                          title="Пополнить"
+                        >
+                          <PackagePlus className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openEdit(item)}
+                          title="Редактировать"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -221,6 +256,12 @@ export function InventoryTable({ items, branches }: InventoryTableProps) {
         onOpenChange={setDialogOpen}
         branches={branches}
         item={editing}
+      />
+      <InventoryRestockDialog
+        open={restockOpen}
+        onOpenChange={setRestockOpen}
+        items={restockItems}
+        defaultItemId={restockItemId}
       />
     </div>
   );

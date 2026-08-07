@@ -123,3 +123,54 @@ export async function updateInventoryItem(
   return { ok: true };
 }
 
+/**
+ * Приход товара на склад.
+ *
+ * Обновление остатка и запись в журнал — атомарно: пополнения без строки
+ * в InventoryTransaction (и наоборот) существовать не должно.
+ */
+export async function restockInventoryItem(
+  _prevState: InventoryFormState,
+  formData: FormData
+): Promise<InventoryFormState> {
+  const companyId = await requireAdminCompanyId();
+
+  const itemId = String(formData.get("itemId") ?? "");
+  const quantity = parseDecimal(formData.get("quantity"));
+  const comment = String(formData.get("comment") ?? "").trim();
+
+  if (!itemId || quantity === null) {
+    return { error: "Выберите товар и укажите количество" };
+  }
+  if (quantity <= 0) {
+    return { error: "Количество должно быть положительным" };
+  }
+
+  const item = await prisma.inventoryItem.findFirst({
+    where: { id: itemId, branch: { companyId } },
+    select: { id: true, branchId: true },
+  });
+
+  if (!item) {
+    return { error: "Товар не найден" };
+  }
+
+  await prisma.$transaction([
+    prisma.inventoryTransaction.create({
+      data: {
+        inventoryItemId: item.id,
+        branchId: item.branchId,
+        type: "RESTOCK",
+        quantity,
+        comment: comment || null,
+      },
+    }),
+    prisma.inventoryItem.update({
+      where: { id: item.id },
+      data: { quantity: { increment: quantity } },
+    }),
+  ]);
+
+  revalidatePath("/admin/inventory");
+  return { ok: true };
+}
