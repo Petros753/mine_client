@@ -15,6 +15,7 @@ import {
   Scissors,
   Building2,
   BarChart3,
+  Boxes,
   Globe,
   Settings,
   Menu,
@@ -80,6 +81,7 @@ export function Sidebar({
           { href: "/admin", icon: CalendarDays, label: "Журнал записей" },
           { href: "/admin/employees", icon: Users, label: "Сотрудники" },
           { href: "/admin/services", icon: Scissors, label: "Услуги" },
+          { href: "/admin/inventory", icon: Boxes, label: "Склад" },
           { href: "/admin/branches", icon: Building2, label: "Филиалы" },
         ]
       : [{ href: "/my-appointments", icon: CalendarDays, label: "Мой календарь" }]),
