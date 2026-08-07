@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday } from "date-fns";
 import { ru } from "date-fns/locale";
 import {
@@ -75,27 +75,39 @@ export function Sidebar({
     branches.find((branch) => branch.id === requestedBranchId)?.id ??
     branches[0]?.id;
 
-  const navItems = [
+  const navItems: NavEntry[] = [
     ...(isAdmin
-      ? [
+      ? ([
           { href: "/admin", icon: CalendarDays, label: "Журнал записей" },
           { href: "/admin/employees", icon: Users, label: "Сотрудники" },
           { href: "/admin/services", icon: Scissors, label: "Услуги" },
-          { href: "/admin/inventory", icon: Boxes, label: "Склад" },
+          // Раскрывающийся пункт «Склад» — как у YCLIENTS: сверху заголовок,
+          // ниже подпункты. По клику на «Склад» без выбора подпункта
+          // отправляем на список товаров — это самая частая цель раздела.
+          {
+            label: "Склад",
+            icon: Boxes,
+            defaultHref: "/admin/inventory",
+            match: "/admin/inventory",
+            children: [
+              { href: "/admin/inventory/warehouses", label: "Склады" },
+              { href: "/admin/inventory", label: "Товары" },
+            ],
+          },
           { href: "/admin/branches", icon: Building2, label: "Филиалы" },
-        ]
-      : [{ href: "/my-appointments", icon: CalendarDays, label: "Мой календарь" }]),
+        ] as NavEntry[])
+      : ([{ href: "/my-appointments", icon: CalendarDays, label: "Мой календарь" }] as NavEntry[])),
     { href: "/dashboard", icon: BarChart3, label: "Аналитика" },
     // Пока нет ни одного филиала, вести некуда — пункт скрываем
     ...(bookingBranchId
-      ? [
+      ? ([
           {
             href: `/book/${bookingBranchId}`,
             icon: Globe,
             label: "Онлайн-запись",
             external: true,
           },
-        ]
+        ] as NavEntry[])
       : []),
     // Раздела настроек пока нет — пункт-заглушка, некликабельный
     { href: "#", icon: Settings, label: "Настройки", disabled: true },
@@ -104,14 +116,19 @@ export function Sidebar({
   /**
    * Активен только самый длинный подходящий пункт: иначе «Журнал записей»
    * с href="/admin" подсвечивался бы на любом /admin/* вместе с разделом.
+   * У раскрывающихся групп в качестве «своего» пути используем match.
    */
-  const activeHref = navItems
-    .filter((item) => !item.external && item.href.startsWith("/"))
-    .filter(
-      (item) =>
-        pathname === item.href || pathname.startsWith(`${item.href}/`)
-    )
-    .sort((a, b) => b.href.length - a.href.length)[0]?.href;
+  const candidateHrefs = navItems.flatMap((item): string[] => {
+    if (isGroupItem(item)) return [item.match];
+    if (isLeafItem(item) && !item.external && item.href.startsWith("/")) {
+      return [item.href];
+    }
+    return [];
+  });
+
+  const activeHref = candidateHrefs
+    .filter((h) => pathname === h || pathname.startsWith(`${h}/`))
+    .sort((a, b) => b.length - a.length)[0];
 
   return (
     <aside
@@ -194,14 +211,28 @@ export function Sidebar({
       )}
 
       <nav className="flex-1 space-y-1 overflow-y-auto px-2 py-2">
-        {navItems.map((item) => (
-          <NavItem
-            key={item.href}
-            item={item}
-            active={item.href === activeHref}
-            collapsed={collapsed}
-          />
-        ))}
+        {navItems.map((item) => {
+          if (isGroupItem(item)) {
+            return (
+              <NavGroup
+                key={item.label}
+                item={item}
+                active={item.match === activeHref}
+                collapsed={collapsed}
+                pathname={pathname}
+              />
+            );
+          }
+          const active = "href" in item && item.href === activeHref;
+          return (
+            <NavItem
+              key={item.href}
+              item={item}
+              active={active}
+              collapsed={collapsed}
+            />
+          );
+        })}
 
         {isAdmin && !collapsed && employees.length > 0 && (
           <div className="pt-2">
@@ -261,19 +292,41 @@ export function Sidebar({
   );
 }
 
+interface LeafItem {
+  href: string;
+  icon: React.ElementType;
+  label: string;
+  external?: boolean;
+  /** Раздел ещё не сделан: показываем неактивным с подсказкой */
+  disabled?: boolean;
+}
+
+interface GroupItem {
+  label: string;
+  icon: React.ElementType;
+  /** Куда переходить по клику на заголовок группы */
+  defaultHref: string;
+  /** Префикс URL раздела — по нему определяем активность группы */
+  match: string;
+  children: Array<{ href: string; label: string }>;
+}
+
+type NavEntry = LeafItem | GroupItem;
+
+function isGroupItem(item: NavEntry): item is GroupItem {
+  return "children" in item;
+}
+
+function isLeafItem(item: NavEntry): item is LeafItem {
+  return "href" in item;
+}
+
 function NavItem({
   item,
   active,
   collapsed,
 }: {
-  item: {
-    href: string;
-    icon: React.ElementType;
-    label: string;
-    external?: boolean;
-    /** Раздел ещё не сделан: показываем неактивным с подсказкой */
-    disabled?: boolean;
-  };
+  item: LeafItem;
   active: boolean;
   collapsed: boolean;
 }) {
@@ -331,5 +384,97 @@ function NavItem({
     <Link href={item.href} className={className}>
       {content}
     </Link>
+  );
+}
+
+function NavGroup({
+  item,
+  active,
+  collapsed,
+  pathname,
+}: {
+  item: GroupItem;
+  active: boolean;
+  collapsed: boolean;
+  pathname: string;
+}) {
+  // Раздел раскрывается автоматически, когда пользователь внутри него.
+  // Не сбрасываем ручное раскрытие пользователя дальше — только
+  // синхронизируемся с фактическим путём при заходе.
+  const [open, setOpen] = useState(active);
+  useEffect(() => {
+    if (active) setOpen(true);
+  }, [active]);
+
+  const headerClass = cn(
+    "flex w-full items-center gap-3 rounded-md px-2 py-2 text-sm font-medium transition-colors",
+    active
+      ? "bg-sidebar-primary text-sidebar-primary-foreground"
+      : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+  );
+
+  const header = (
+    <>
+      <item.icon className="h-4 w-4 shrink-0" />
+      {!collapsed && (
+        <>
+          <span className="flex-1 truncate text-left">{item.label}</span>
+          <ChevronDown
+            className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")}
+          />
+        </>
+      )}
+    </>
+  );
+
+  // Свёрнутый сайдбар: раскрытие невозможно, ведём на дефолтный подпункт
+  if (collapsed) {
+    return (
+      <Link href={item.defaultHref} className={headerClass}>
+        {header}
+      </Link>
+    );
+  }
+
+  return (
+    <div className="space-y-0.5">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={headerClass}
+        aria-expanded={open}
+      >
+        {header}
+      </button>
+      {open && (
+        <div className="ml-7 space-y-0.5 border-l border-sidebar-border pl-2">
+          {item.children.map((child) => {
+            // Считаем активным самый длинный подходящий подпункт — иначе
+            // «Товары» с href="/admin/inventory" зажигался бы на любом
+            // /admin/inventory/*.
+            const longest = item.children
+              .filter(
+                (c) => pathname === c.href || pathname.startsWith(`${c.href}/`)
+              )
+              .sort((a, b) => b.href.length - a.href.length)[0];
+            const childActive = child.href === longest?.href;
+            return (
+              <Link
+                key={child.href}
+                href={child.href}
+                className={cn(
+                  "block truncate rounded-md px-2 py-1.5 text-sm transition-colors",
+                  childActive
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                )}
+              >
+                {child.label}
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
