@@ -48,6 +48,8 @@ interface InventoryTableProps {
   items: InventoryItem[];
   branches: Array<{ id: string; name: string }>;
   warehouses: WarehouseOption[];
+  /** id филиала, чей склад сейчас активен (или первый филиал компании) */
+  activeBranchId: string | null;
   activeWarehouseId: string | null;
 }
 
@@ -63,6 +65,7 @@ export function InventoryTable({
   items,
   branches,
   warehouses,
+  activeBranchId,
   activeWarehouseId,
 }: InventoryTableProps) {
   const router = useRouter();
@@ -76,28 +79,16 @@ export function InventoryTable({
   const [restockOpen, setRestockOpen] = useState(false);
   const [restockItemId, setRestockItemId] = useState<string | null>(null);
 
-  // Табы верхнего уровня строим по филиалам (склады одного филиала —
-  // радио-кнопки внутри), чтобы UI не разъезжался при большом числе
-  // складов у нескольких филиалов
-  const grouped = useMemo(() => {
-    const map = new Map<
-      string,
-      { branchId: string; branchName: string; items: WarehouseOption[] }
-    >();
-    for (const w of warehouses) {
-      const bucket = map.get(w.branchId);
-      if (bucket) bucket.items.push(w);
-      else
-        map.set(w.branchId, {
-          branchId: w.branchId,
-          branchName: w.branchName,
-          items: [w],
-        });
-    }
-    return Array.from(map.values());
-  }, [warehouses]);
+  const activeWarehouse =
+    warehouses.find((w) => w.id === activeWarehouseId) ?? null;
 
-  const activeWarehouse = warehouses.find((w) => w.id === activeWarehouseId) ?? null;
+  // Табы показывают только склады выбранного филиала — раньше был список
+  // «BranchName: WarehouseButton» на всю компанию, и одно сочетание
+  // «имя филиала: единственный склад» читалось как имя человека.
+  const branchWarehouses = useMemo(
+    () => warehouses.filter((w) => w.branchId === activeBranchId),
+    [warehouses, activeBranchId]
+  );
 
   const toggleSort = (key: SortKey) => {
     setSort((prev) => ({
@@ -125,7 +116,16 @@ export function InventoryTable({
   }, [items, query, sort]);
 
   const switchWarehouse = (id: string) => {
-    router.push(`/admin/inventory?warehouseId=${id}`);
+    // Держим branchId в URL — так после перезагрузки/шеринга ссылки
+    // страница остаётся на том же филиале, а не «прыгает» на первый
+    const suffix = activeBranchId ? `&branchId=${activeBranchId}` : "";
+    router.push(`/admin/inventory?warehouseId=${id}${suffix}`);
+  };
+
+  const switchBranch = (id: string) => {
+    // При смене филиала конкретный склад ещё не выбран — сервер сам
+    // подставит первый склад нового филиала
+    router.push(`/admin/inventory?branchId=${id}`);
   };
 
   const openCreate = () => {
@@ -172,35 +172,62 @@ export function InventoryTable({
       ) : (
         <>
           <div className="flex flex-col gap-3 rounded-md border p-3">
-            {grouped.map((group) => (
-              <div key={group.branchId} className="flex flex-wrap items-center gap-2">
-                {branches.length > 1 && (
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {group.branchName}:
-                  </span>
-                )}
-                <div className="flex flex-wrap gap-1">
-                  {group.items.map((w) => {
-                    const active = w.id === activeWarehouseId;
-                    return (
-                      <button
-                        key={w.id}
-                        type="button"
-                        onClick={() => switchWarehouse(w.id)}
-                        className={
-                          "rounded-md px-3 py-1 text-sm transition-colors " +
-                          (active
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted text-foreground hover:bg-muted/80")
-                        }
-                      >
-                        {w.name}
-                      </button>
-                    );
-                  })}
-                </div>
+            {branches.length > 1 && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-muted-foreground">
+                  Филиал:
+                </span>
+                <Select
+                  value={activeBranchId ?? undefined}
+                  onValueChange={(v) => v && switchBranch(v)}
+                >
+                  <SelectTrigger className="h-8 w-[220px] text-sm">
+                    <SelectValue placeholder="Выберите филиал" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {branches.map((b) => (
+                      <SelectItem key={b.id} value={b.id}>
+                        {b.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            ))}
+            )}
+
+            {branchWarehouses.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                У этого филиала пока нет складов.{" "}
+                <Link
+                  href="/admin/inventory/warehouses"
+                  className="font-medium text-primary hover:underline"
+                >
+                  Создайте склад
+                </Link>
+                .
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-1">
+                {branchWarehouses.map((w) => {
+                  const active = w.id === activeWarehouseId;
+                  return (
+                    <button
+                      key={w.id}
+                      type="button"
+                      onClick={() => switchWarehouse(w.id)}
+                      className={
+                        "rounded-md px-3 py-1 text-sm transition-colors " +
+                        (active
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-foreground hover:bg-muted/80")
+                      }
+                    >
+                      {w.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

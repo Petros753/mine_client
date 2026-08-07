@@ -21,13 +21,27 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
   const { warehouseId: requestedWarehouseId, branchId: requestedBranchId } =
     await searchParams;
 
-  // Активный склад: приоритет — явный warehouseId в URL. Если задан только
-  // branchId (переключение филиала через topbar), берём первый склад филиала.
-  // Иначе — первый склад по порядку.
+  // Активный филиал (в порядке приоритета):
+  //   1) филиал явно указанного склада — так шеринг ?warehouseId=... работает,
+  //   2) явно указанный branchId в URL,
+  //   3) первый филиал компании.
+  // Если запрошенный склад/филиал чужой (или не существует) — просто откатываемся
+  // на следующий вариант, а не молча меняем URL.
+  const requestedWarehouse = warehouses.find(
+    (w) => w.id === requestedWarehouseId
+  );
+  const activeBranchId =
+    requestedWarehouse?.branchId ??
+    branches.find((b) => b.id === requestedBranchId)?.id ??
+    branches[0]?.id ??
+    null;
+
+  // Активный склад: явный warehouseId, иначе первый склад активного филиала.
+  // Если у филиала складов нет — activeWarehouse = null, таблица покажет
+  // подсказку «создайте склад», а не молча покажет чужие товары.
   const activeWarehouse =
-    warehouses.find((w) => w.id === requestedWarehouseId) ??
-    warehouses.find((w) => w.branchId === requestedBranchId) ??
-    warehouses[0] ??
+    requestedWarehouse ??
+    warehouses.find((w) => w.branchId === activeBranchId) ??
     null;
 
   const items = activeWarehouse
@@ -62,6 +76,7 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
         items={rows}
         branches={branches}
         warehouses={warehouseOptions}
+        activeBranchId={activeBranchId}
         activeWarehouseId={activeWarehouse?.id ?? null}
       />
     </PageShell>
