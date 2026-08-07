@@ -1,11 +1,16 @@
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
-import type { NotificationType } from "@prisma/client";
+import type { NotificationStatus, NotificationType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { sendEmail, type EmailMessage } from "@/lib/email";
 
 /** Событие записи, о котором уведомляем клиента */
-export type AppointmentEvent = "created" | "confirmed" | "cancelled";
+export type AppointmentEvent =
+  | "created"
+  | "confirmed"
+  | "cancelled"
+  | "reminder24h"
+  | "reminder2h";
 
 // В схеме нет отдельного типа для «заявка принята, ждёт подтверждения»,
 // поэтому и создание, и подтверждение пишем как CONFIRMATION.
@@ -13,6 +18,8 @@ const EVENT_NOTIFICATION_TYPE: Record<AppointmentEvent, NotificationType> = {
   created: "CONFIRMATION",
   confirmed: "CONFIRMATION",
   cancelled: "CANCELLATION",
+  reminder24h: "REMINDER_24H",
+  reminder2h: "REMINDER_2H",
 };
 
 type AppointmentForEmail = {
@@ -78,6 +85,18 @@ const EVENT_COPY: Record<
     intro: "К сожалению, ваша запись отменена.",
     outro: "Вы всегда можете записаться на другое время — будем рады видеть вас.",
   },
+  reminder24h: {
+    subject: "Напоминание: запись завтра",
+    intro: "Напоминаем о вашей записи — она состоится завтра.",
+    outro:
+      "Если планы изменились, предупредите нас по телефону филиала: " +
+      "мы освободим время для других клиентов.",
+  },
+  reminder2h: {
+    subject: "Напоминание: запись через 2 часа",
+    intro: "Напоминаем о вашей записи — она уже совсем скоро.",
+    outro: "Если опаздываете, позвоните нам по телефону филиала.",
+  },
 };
 
 function buildMessage(
@@ -129,11 +148,15 @@ function buildMessage(
  * Отправляет клиенту письмо о событии записи и фиксирует попытку в таблице
  * notifications. Ошибки отправки не пробрасываются наверх — мутация записи
  * не должна откатываться из-за недоступной почты.
+ *
+ * Возвращает статус записанного уведомления или `null`, если уведомлять было
+ * некого (запись не найдена или у клиента нет email). Вызовам из server
+ * actions результат не нужен, а крон напоминаний по нему считает статистику.
  */
 export async function notifyClient(
   appointmentId: string,
   event: AppointmentEvent
-): Promise<void> {
+): Promise<NotificationStatus | null> {
   const appointment = await prisma.appointment.findUnique({
     where: { id: appointmentId },
     include: {
@@ -144,18 +167,22 @@ export async function notifyClient(
     },
   });
 
-  if (!appointment) return;
+  if (!appointment) return null;
 
   const to = appointment.client.email;
   if (!to) {
     // Клиент не оставил email — уведомлять некуда (SMS появятся в фазе 2)
-    return;
+    return null;
   }
 
   const result = await sendEmail(buildMessage(event, appointment, to));
 
   // skipped — отправки не было (не настроен ключ), это не ошибка доставки
-  const status = result.ok ? "SENT" : result.skipped ? "SCHEDULED" : "FAILED";
+  const status: NotificationStatus = result.ok
+    ? "SENT"
+    : result.skipped
+      ? "SCHEDULED"
+      : "FAILED";
 
   try {
     await prisma.notification.create({
@@ -171,4 +198,6 @@ export async function notifyClient(
   } catch (error) {
     console.error("[notifications] Не удалось записать уведомление:", error);
   }
+
+  return status;
 }

@@ -314,6 +314,13 @@ model Notification {
 
   appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
 
+  // Крон напоминаний на каждом запуске спрашивает «есть ли уже уведомление
+  // такого типа у этой записи». Составной индекс закрывает и этот запрос,
+  // и выборку всех уведомлений записи (по левому префиксу).
+  //
+  // Именно индекс, а не @@unique: created и confirmed пишут по одной строке
+  // CONFIRMATION на ту же запись, уникальность их бы сломала.
+  @@index([appointmentId, type])
   @@map("notifications")
 }
 
