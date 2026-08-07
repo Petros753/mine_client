@@ -55,6 +55,7 @@ model Branch {
   appointments Appointment[]
   workingHours WorkingHours[]
   inventoryItems InventoryItem[]
+  inventoryTransactions InventoryTransaction[]
 
   @@index([companyId])
   @@map("branches")
@@ -204,6 +205,7 @@ model Service {
   category     ServiceCategory?  @relation(fields: [categoryId], references: [id])
   employees    EmployeeService[]
   appointments Appointment[]
+  ingredients  ServiceIngredient[]
 
   @@index([branchId])
   @@map("services")
@@ -276,6 +278,7 @@ model Appointment {
   service  Service  @relation(fields: [serviceId], references: [id])
 
   notifications Notification[]
+  inventoryTransactions InventoryTransaction[]
 
   @@index([branchId, startAt])
   @@index([employeeId, startAt])
@@ -390,20 +393,79 @@ model ClientSubscription {
 }
 
 // -----------------------------------------------------
-// 8. СКЛАД (фаза 2, закладываем структуру заранее)
+// 8. СКЛАД
 // -----------------------------------------------------
 
 model InventoryItem {
   id          String   @id @default(cuid())
   branchId    String
   name        String
+  sku         String?  // артикул, опционально
   unit        String   // "шт", "мл", "г"
   quantity    Decimal  @default(0) @db.Decimal(10, 2)
   costPrice   Decimal  @db.Decimal(10, 2)
+  // Порог «заканчивается»: если quantity <= minQuantity, подсвечиваем
+  // строку в списке. Не влияет на возможность списания.
+  minQuantity Decimal? @db.Decimal(10, 2)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  branch       Branch                 @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  ingredients  ServiceIngredient[]
+  transactions InventoryTransaction[]
 
+  @@index([branchId])
   @@map("inventory_items")
+}
+
+// Технологическая карта услуги: сколько единиц конкретного товара
+// уходит на одну процедуру. При COMPLETED списываем ровно по этой таблице.
+model ServiceIngredient {
+  id              String  @id @default(cuid())
+  serviceId       String
+  inventoryItemId String
+  quantityUsed    Decimal @db.Decimal(10, 2)
+
+  service       Service       @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+
+  // Один товар — не более одной строки в тех.карте услуги.
+  @@unique([serviceId, inventoryItemId])
+  @@index([inventoryItemId])
+  @@map("service_ingredients")
+}
+
+// Журнал движения товара: приход, списание за услугу, ручная
+// корректировка. Остаток InventoryItem.quantity — денормализация,
+// журнал — источник истины.
+model InventoryTransaction {
+  id              String                   @id @default(cuid())
+  inventoryItemId String
+  branchId        String
+  type            InventoryTransactionType
+  // Знак задаёт направление: RESTOCK — плюс, CONSUMPTION — минус,
+  // ADJUSTMENT — любой знак.
+  quantity        Decimal                  @db.Decimal(10, 2)
+  // Заполняется только для CONSUMPTION — чтобы видеть, за какой визит
+  // списан материал.
+  appointmentId   String?
+  comment         String?
+  createdAt       DateTime                 @default(now())
+
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  branch        Branch        @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  appointment   Appointment?  @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+
+  @@index([inventoryItemId, createdAt])
+  @@index([branchId, createdAt])
+  @@map("inventory_transactions")
+}
+
+enum InventoryTransactionType {
+  RESTOCK      // приход товара на склад
+  CONSUMPTION  // списание при завершении визита
+  ADJUSTMENT   // ручная корректировка остатка
 }
 
 // -----------------------------------------------------
