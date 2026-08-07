@@ -24,17 +24,26 @@ type Service = {
   durationMinutes: number;
   price: number;
   isActive: boolean;
+  ingredients: Array<{ inventoryItemId: string; quantityUsed: number }>;
 };
+
+interface InventoryOption {
+  id: string;
+  name: string;
+  unit: string;
+  branchId: string;
+}
 
 interface ServiceTableProps {
   services: Service[];
   branches: Array<{ id: string; name: string }>;
+  inventoryItems: InventoryOption[];
 }
 
 type SortKey = "name" | "branch" | "price" | "duration";
 type SortDir = "asc" | "desc";
 
-export function ServiceTable({ services, branches }: ServiceTableProps) {
+export function ServiceTable({ services, branches, inventoryItems }: ServiceTableProps) {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({
     key: "name",
@@ -196,6 +205,7 @@ export function ServiceTable({ services, branches }: ServiceTableProps) {
         onOpenChange={setDialogOpen}
         branches={branches}
         service={editing}
+        inventoryItems={inventoryItems}
       />
     </div>
   );

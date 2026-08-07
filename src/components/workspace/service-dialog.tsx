@@ -13,6 +13,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
+interface InventoryOption {
+  id: string;
+  name: string;
+  unit: string;
+  branchId: string;
+}
+
 interface ServiceDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -25,7 +32,9 @@ interface ServiceDialogProps {
     durationMinutes: number;
     price: number;
     isActive: boolean;
+    ingredients: Array<{ inventoryItemId: string; quantityUsed: number }>;
   } | null;
+  inventoryItems: InventoryOption[];
 }
 
 export function ServiceDialog({
@@ -33,12 +42,13 @@ export function ServiceDialog({
   onOpenChange,
   branches,
   service,
+  inventoryItems,
 }: ServiceDialogProps) {
   const isEdit = !!service;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Редактировать услугу" : "Новая услуга"}</DialogTitle>
           <DialogDescription>
@@ -52,6 +62,7 @@ export function ServiceDialog({
           action={isEdit ? updateService : createService}
           branches={branches}
           service={service}
+          inventoryItems={inventoryItems}
           onSuccess={() => onOpenChange(false)}
         />
       </DialogContent>
