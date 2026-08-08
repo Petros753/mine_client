@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { restockInventoryItem } from "@/app/admin/inventory/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,24 +41,42 @@ export function InventoryRestockDialog({
   items,
   defaultItemId,
 }: InventoryRestockDialogProps) {
-  const [state, formAction, pending] = useActionState(restockInventoryItem, {});
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
   const [itemId, setItemId] = useState<string>(
     defaultItemId ?? items[0]?.id ?? ""
   );
 
-  // При каждом открытии диалога подставляем актуальный выбор — иначе
-  // после закрытия форма помнила бы предыдущий товар
+  // При каждом открытии диалога подставляем актуальный выбор и сбрасываем
+  // ошибку прошлой попытки, чтобы форма не помнила ни товар, ни красное
+  // сообщение из прошлой сессии.
   useEffect(() => {
     if (open) {
       setItemId(defaultItemId ?? items[0]?.id ?? "");
+      setError(null);
     }
   }, [open, defaultItemId, items]);
 
-  useEffect(() => {
-    if (state.ok) onOpenChange(false);
-  }, [state.ok, onOpenChange]);
-
   const selectedItem = items.find((i) => i.id === itemId);
+
+  /**
+   * Явный success-handler вместо useActionState + useEffect(state.ok):
+   * прошлая версия не закрывалась во второй раз, потому что state.ok
+   * после первого успеха оставался true и повторный успех не менял
+   * зависимости эффекта. useTransition даёт прямой доступ к результату
+   * без косвенных зависимостей.
+   */
+  const handleSubmit = (formData: FormData) => {
+    setError(null);
+    startTransition(async () => {
+      const result = await restockInventoryItem({}, formData);
+      if (result.ok) {
+        onOpenChange(false);
+      } else if (result.error) {
+        setError(result.error);
+      }
+    });
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -70,7 +88,7 @@ export function InventoryRestockDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form action={formAction} className="space-y-4">
+        <form action={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="itemId">Товар *</Label>
             <Select
@@ -122,9 +140,9 @@ export function InventoryRestockDialog({
             />
           </div>
 
-          {state.error && (
+          {error && (
             <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {state.error}
+              {error}
             </p>
           )}
 
