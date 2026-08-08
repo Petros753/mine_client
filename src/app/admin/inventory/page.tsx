@@ -6,7 +6,11 @@ import { InventoryTable } from "@/components/workspace/inventory-table";
 import { INVENTORY_BRANCH_COOKIE } from "./constants";
 
 interface InventoryPageProps {
-  searchParams: Promise<{ warehouseId?: string; branchId?: string }>;
+  searchParams: Promise<{
+    warehouseId?: string;
+    branchId?: string;
+    hidden?: string;
+  }>;
 }
 
 export default async function InventoryPage({ searchParams }: InventoryPageProps) {
@@ -30,8 +34,15 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
     cookies(),
   ]);
 
-  const { warehouseId: requestedWarehouseId, branchId: requestedBranchId } =
-    await searchParams;
+  const {
+    warehouseId: requestedWarehouseId,
+    branchId: requestedBranchId,
+    hidden: showHiddenParam,
+  } = await searchParams;
+
+  // «Показать скрытые» — соф-удалённые товары. По умолчанию не показываем,
+  // чтобы список не засорялся; чекбокс сверху даёт вернуться и восстановить.
+  const showHidden = showHiddenParam === "1";
 
   // Активный филиал (в порядке приоритета):
   //   1) филиал явно указанного склада — так шеринг ?warehouseId=... работает,
@@ -60,7 +71,10 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
 
   const items = activeWarehouse
     ? await prisma.inventoryItem.findMany({
-        where: { warehouseId: activeWarehouse.id },
+        where: {
+          warehouseId: activeWarehouse.id,
+          ...(showHidden ? {} : { isActive: true }),
+        },
         orderBy: { createdAt: "desc" },
       })
     : [];
@@ -92,6 +106,7 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
         warehouses={warehouseOptions}
         activeBranchId={activeBranchId}
         activeWarehouseId={activeWarehouse?.id ?? null}
+        showHidden={showHidden}
       />
     </PageShell>
   );

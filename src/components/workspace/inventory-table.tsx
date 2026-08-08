@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -23,9 +23,23 @@ import {
 } from "@/components/ui/select";
 import { InventoryDialog } from "./inventory-dialog";
 import { InventoryRestockDialog } from "./inventory-restock-dialog";
-import { rememberInventoryBranch } from "@/app/admin/inventory/actions";
+import {
+  rememberInventoryBranch,
+  restoreInventoryItem,
+  softDeleteInventoryItem,
+} from "@/app/admin/inventory/actions";
 import { compareStrings } from "@/lib/utils";
-import { Search, Plus, Pencil, ArrowUpDown, PackagePlus } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import {
+  Search,
+  Plus,
+  Pencil,
+  ArrowUpDown,
+  PackagePlus,
+  Trash2,
+  RotateCcw,
+} from "lucide-react";
 
 type InventoryItem = {
   id: string;
@@ -53,6 +67,8 @@ interface InventoryTableProps {
   /** id филиала, чей склад сейчас активен (или первый филиал компании) */
   activeBranchId: string | null;
   activeWarehouseId: string | null;
+  /** Показывать ли соф-удалённые товары (isActive=false) */
+  showHidden: boolean;
 }
 
 type SortKey = "name" | "quantity" | "cost";
@@ -69,8 +85,11 @@ export function InventoryTable({
   warehouses,
   activeBranchId,
   activeWarehouseId,
+  showHidden,
 }: InventoryTableProps) {
   const router = useRouter();
+  const [pendingRowAction, startRowAction] = useTransition();
+  const [rowActionId, setRowActionId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({
     key: "name",
@@ -117,6 +136,20 @@ export function InventoryTable({
     return rows;
   }, [items, query, sort]);
 
+  /** Собрать URL, сохранив текущие фильтры страницы (branch/warehouse/hidden). */
+  const buildUrl = (params: {
+    branchId?: string | null;
+    warehouseId?: string | null;
+    hidden?: boolean;
+  }) => {
+    const usp = new URLSearchParams();
+    if (params.branchId) usp.set("branchId", params.branchId);
+    if (params.warehouseId) usp.set("warehouseId", params.warehouseId);
+    if (params.hidden) usp.set("hidden", "1");
+    const qs = usp.toString();
+    return `/admin/inventory${qs ? `?${qs}` : ""}`;
+  };
+
   const switchWarehouse = (id: string) => {
     // Держим branchId в URL — так после перезагрузки/шеринга ссылки
     // страница остаётся на том же филиале, а не «прыгает» на первый.
@@ -125,15 +158,53 @@ export function InventoryTable({
     // через sidebar отдавал бы старый RSC (cookie ставился только на
     // клиенте, Router Cache о нём не знает).
     if (activeBranchId) rememberInventoryBranch(activeBranchId);
-    const suffix = activeBranchId ? `&branchId=${activeBranchId}` : "";
-    router.push(`/admin/inventory?warehouseId=${id}${suffix}`);
+    router.push(
+      buildUrl({ branchId: activeBranchId, warehouseId: id, hidden: showHidden })
+    );
   };
 
   const switchBranch = (id: string) => {
     // При смене филиала конкретный склад ещё не выбран — сервер сам
     // подставит первый склад нового филиала.
     rememberInventoryBranch(id);
-    router.push(`/admin/inventory?branchId=${id}`);
+    router.push(buildUrl({ branchId: id, hidden: showHidden }));
+  };
+
+  const toggleShowHidden = (next: boolean) => {
+    router.push(
+      buildUrl({
+        branchId: activeBranchId,
+        warehouseId: activeWarehouseId,
+        hidden: next,
+      })
+    );
+  };
+
+  const handleSoftDelete = (item: InventoryItem) => {
+    // Confirm нужен, потому что удаление — это действие «на будущее»:
+    // товар пропадает из списка. История списаний и тех.карты не рвутся
+    // (это soft delete), но пользователь должен явно подтвердить.
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(
+        `Скрыть товар «${item.name}»? История списаний и тех.карты услуг сохранятся. Восстановить можно через «Показать скрытые».`
+      )
+    ) {
+      return;
+    }
+    setRowActionId(item.id);
+    startRowAction(async () => {
+      await softDeleteInventoryItem(item.id);
+      setRowActionId(null);
+    });
+  };
+
+  const handleRestore = (item: InventoryItem) => {
+    setRowActionId(item.id);
+    startRowAction(async () => {
+      await restoreInventoryItem(item.id);
+      setRowActionId(null);
+    });
   };
 
   const openCreate = () => {
@@ -245,14 +316,26 @@ export function InventoryTable({
           </div>
 
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="relative w-full sm:max-w-xs">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Поиск по названию, артикулу"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                className="pl-9"
-              />
+            <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="relative w-full sm:max-w-xs">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Поиск по названию, артикулу"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="show-hidden"
+                  checked={showHidden}
+                  onCheckedChange={(v) => toggleShowHidden(v === true)}
+                />
+                <Label htmlFor="show-hidden" className="text-sm font-normal">
+                  Показать скрытые
+                </Label>
+              </div>
             </div>
             <div className="flex gap-2">
               <Button
@@ -355,22 +438,54 @@ export function InventoryTable({
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => openRestock(item.id)}
-                              title="Пополнить"
-                            >
-                              <PackagePlus className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => openEdit(item)}
-                              title="Редактировать"
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
+                            {item.isActive ? (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => openRestock(item.id)}
+                                  title="Пополнить"
+                                >
+                                  <PackagePlus className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => openEdit(item)}
+                                  title="Редактировать"
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleSoftDelete(item)}
+                                  disabled={
+                                    pendingRowAction && rowActionId === item.id
+                                  }
+                                  title="Удалить"
+                                  className="text-destructive hover:text-destructive"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </>
+                            ) : (
+                              // Скрытый товар: даём только «Восстановить»,
+                              // редактировать/пополнять смысла нет, пока он
+                              // не активирован обратно
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRestore(item)}
+                                disabled={
+                                  pendingRowAction && rowActionId === item.id
+                                }
+                                title="Восстановить"
+                              >
+                                <RotateCcw className="mr-1.5 h-4 w-4" />
+                                Восстановить
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>

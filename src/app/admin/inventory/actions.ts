@@ -222,6 +222,50 @@ export async function restockInventoryItem(
   return { ok: true };
 }
 
+/**
+ * «Мягкое» удаление товара: помечаем isActive=false.
+ *
+ * Физически удалять нельзя: InventoryTransaction — это аудит-журнал
+ * с ссылкой на appointmentId (история списаний за визиты), а
+ * ServiceIngredient — тех.карты услуг, по которым идёт автосписание.
+ * Cascade DELETE стёр бы и историю, и тех.карты, обычно без ведома
+ * администратора.
+ */
+export async function softDeleteInventoryItem(itemId: string): Promise<void> {
+  const companyId = await requireAdminCompanyId();
+
+  const item = await prisma.inventoryItem.findFirst({
+    where: { id: itemId, warehouse: { branch: { companyId } } },
+    select: { id: true },
+  });
+  if (!item) return;
+
+  await prisma.inventoryItem.update({
+    where: { id: item.id },
+    data: { isActive: false },
+  });
+
+  revalidatePath("/admin/inventory");
+}
+
+/** Восстановить скрытый товар: возвращает isActive=true. */
+export async function restoreInventoryItem(itemId: string): Promise<void> {
+  const companyId = await requireAdminCompanyId();
+
+  const item = await prisma.inventoryItem.findFirst({
+    where: { id: itemId, warehouse: { branch: { companyId } } },
+    select: { id: true },
+  });
+  if (!item) return;
+
+  await prisma.inventoryItem.update({
+    where: { id: item.id },
+    data: { isActive: true },
+  });
+
+  revalidatePath("/admin/inventory");
+}
+
 // -----------------------------------------------------
 // Склады (Warehouse)
 // -----------------------------------------------------
