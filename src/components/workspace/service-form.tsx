@@ -134,7 +134,13 @@ export function ServiceForm({
           onValueChange={(v) => setBranchId(v ?? "")}
         >
           <SelectTrigger>
-            <SelectValue placeholder="Выберите филиал" />
+            {/* base-ui: без render-функции SelectValue рисует id */}
+            <SelectValue placeholder="Выберите филиал">
+              {(value) =>
+                branches.find((b) => b.id === value)?.name ??
+                "Выберите филиал"
+              }
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {branches.map((branch) => (
@@ -267,7 +273,20 @@ export function ServiceForm({
                       }
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Выберите товар" />
+                        {/* base-ui: без render-функции SelectValue рисует id */}
+                        <SelectValue placeholder="Выберите товар">
+                          {(value) => {
+                            const it =
+                              branchInventory.find((x) => x.id === value) ??
+                              (orphaned?.id === value ? orphaned : null);
+                            if (!it) return "Выберите товар";
+                            const suffix =
+                              orphaned && orphaned.id === it.id
+                                ? " — другой филиал"
+                                : "";
+                            return `${it.name} (${it.unit}) · ${it.warehouseName}${suffix}`;
+                          }}
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         {branchInventory.map((it) => (

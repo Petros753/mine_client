@@ -80,7 +80,13 @@ export function InventoryRestockDialog({
               disabled={items.length === 0}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Выберите товар" />
+                {/* base-ui: без render-функции SelectValue рисует id */}
+                <SelectValue placeholder="Выберите товар">
+                  {(value) => {
+                    const it = items.find((x) => x.id === value);
+                    return it ? `${it.name} · ${it.branchName}` : "Выберите товар";
+                  }}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {items.map((it) => (

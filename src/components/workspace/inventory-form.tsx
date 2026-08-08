@@ -85,7 +85,16 @@ export function InventoryForm({
           disabled={warehouses.length === 0}
         >
           <SelectTrigger>
-            <SelectValue placeholder="Выберите склад" />
+            {/* base-ui: без render-функции SelectValue рисует id */}
+            <SelectValue placeholder="Выберите склад">
+              {(value) => {
+                const w = warehouses.find((x) => x.id === value);
+                if (!w) return "Выберите склад";
+                return multipleBranches
+                  ? `${w.name} · ${w.branchName}`
+                  : w.name;
+              }}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {warehouses.map((w) => (

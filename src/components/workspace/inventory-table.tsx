@@ -182,7 +182,13 @@ export function InventoryTable({
                   onValueChange={(v) => v && switchBranch(v)}
                 >
                   <SelectTrigger className="h-8 w-[220px] text-sm">
-                    <SelectValue placeholder="Выберите филиал" />
+                    {/* base-ui: без render-функции SelectValue рисует id */}
+                    <SelectValue placeholder="Выберите филиал">
+                      {(value) =>
+                        branches.find((b) => b.id === value)?.name ??
+                        "Выберите филиал"
+                      }
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {branches.map((b) => (

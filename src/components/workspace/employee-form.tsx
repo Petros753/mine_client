@@ -64,7 +64,13 @@ export function EmployeeForm({
           defaultValue={employee?.branchId ?? defaultBranchId ?? branches[0]?.id}
         >
           <SelectTrigger>
-            <SelectValue placeholder="Выберите филиал" />
+            {/* base-ui: без render-функции SelectValue рисует id */}
+            <SelectValue placeholder="Выберите филиал">
+              {(value) =>
+                branches.find((b) => b.id === value)?.name ??
+                "Выберите филиал"
+              }
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {branches.map((branch) => (
