@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { EmployeeDialog } from "./employee-dialog";
+import { compareStrings } from "@/lib/utils";
 import { Search, Plus, Pencil, ArrowUpDown, Mail } from "lucide-react";
 
 type Employee = {
@@ -79,14 +80,15 @@ export function EmployeeTable({ employees, branches }: EmployeeTableProps) {
     rows.sort((a, b) => {
       const dir = sort.dir === "asc" ? 1 : -1;
       if (sort.key === "name") {
-        return `${a.firstName} ${a.lastName ?? ""}`.localeCompare(
+        return compareStrings(
+          `${a.firstName} ${a.lastName ?? ""}`,
           `${b.firstName} ${b.lastName ?? ""}`
         ) * dir;
       }
       if (sort.key === "branch") {
-        return a.branchName.localeCompare(b.branchName) * dir;
+        return compareStrings(a.branchName, b.branchName) * dir;
       }
-      return (a.position ?? "").localeCompare(b.position ?? "") * dir;
+      return compareStrings(a.position ?? "", b.position ?? "") * dir;
     });
 
     return rows;

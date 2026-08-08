@@ -13,6 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { BranchDialog } from "./branch-dialog";
+import { compareStrings } from "@/lib/utils";
 import { Search, Plus, Pencil, ArrowUpDown, MapPin, Phone } from "lucide-react";
 
 type Branch = {
@@ -57,9 +58,9 @@ export function BranchTable({ branches }: BranchTableProps) {
     rows.sort((a, b) => {
       const dir = sort.dir === "asc" ? 1 : -1;
       if (sort.key === "name") {
-        return a.name.localeCompare(b.name) * dir;
+        return compareStrings(a.name, b.name) * dir;
       }
-      return (a.address ?? "").localeCompare(b.address ?? "") * dir;
+      return compareStrings(a.address ?? "", b.address ?? "") * dir;
     });
 
     return rows;

@@ -181,8 +181,10 @@ export function Sidebar({
                 </div>
               </div>
               <div className="grid grid-cols-7 gap-0.5 text-center">
-                {["П", "В", "С", "Ч", "П", "С", "В"].map((d) => (
-                  <span key={d} className="text-[10px] text-muted-foreground">
+                {/* Сокращения дней недели повторяются (П, С, В — по два раза),
+                    поэтому в key идёт индекс, а не сама буква */}
+                {["П", "В", "С", "Ч", "П", "С", "В"].map((d, i) => (
+                  <span key={i} className="text-[10px] text-muted-foreground">
                     {d}
                   </span>
                 ))}

@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { InventoryDialog } from "./inventory-dialog";
 import { InventoryRestockDialog } from "./inventory-restock-dialog";
+import { compareStrings } from "@/lib/utils";
 import { Search, Plus, Pencil, ArrowUpDown, PackagePlus } from "lucide-react";
 
 type InventoryItem = {
@@ -107,7 +108,7 @@ export function InventoryTable({
 
     rows.sort((a, b) => {
       const dir = sort.dir === "asc" ? 1 : -1;
-      if (sort.key === "name") return a.name.localeCompare(b.name) * dir;
+      if (sort.key === "name") return compareStrings(a.name, b.name) * dir;
       if (sort.key === "quantity") return (a.quantity - b.quantity) * dir;
       return (a.costPrice - b.costPrice) * dir;
     });
