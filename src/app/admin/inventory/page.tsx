@@ -1,7 +1,11 @@
+import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { getCompanyBranches, requireAdminCompanyId } from "@/lib/tenant";
 import { PageShell } from "@/components/workspace/page-shell";
-import { InventoryTable } from "@/components/workspace/inventory-table";
+import {
+  InventoryTable,
+  INVENTORY_BRANCH_COOKIE,
+} from "@/components/workspace/inventory-table";
 
 interface InventoryPageProps {
   searchParams: Promise<{ warehouseId?: string; branchId?: string }>;
@@ -9,13 +13,23 @@ interface InventoryPageProps {
 
 export default async function InventoryPage({ searchParams }: InventoryPageProps) {
   const companyId = await requireAdminCompanyId();
-  const [branches, warehouses] = await Promise.all([
+  const [branches, warehouses, oldestBranch, cookieStore] = await Promise.all([
     getCompanyBranches(companyId),
     prisma.warehouse.findMany({
       where: { branch: { companyId } },
       include: { branch: { select: { id: true, name: true } } },
       orderBy: [{ branch: { name: "asc" } }, { createdAt: "asc" }],
     }),
+    // Первый созданный филиал — стабильный дефолт для нового юзера без
+    // cookie. Алфавитный порядок как дефолт вводит в заблуждение: «Paul
+    // Lihten» опережает «Филиал на Арбате», но админ считает «главным»
+    // первый заведённый.
+    prisma.branch.findFirst({
+      where: { companyId },
+      orderBy: { createdAt: "asc" },
+      select: { id: true },
+    }),
+    cookies(),
   ]);
 
   const { warehouseId: requestedWarehouseId, branchId: requestedBranchId } =
@@ -24,16 +38,18 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
   // Активный филиал (в порядке приоритета):
   //   1) филиал явно указанного склада — так шеринг ?warehouseId=... работает,
   //   2) явно указанный branchId в URL,
-  //   3) первый филиал компании.
-  // Если запрошенный склад/филиал чужой (или не существует) — просто откатываемся
-  // на следующий вариант, а не молча меняем URL.
+  //   3) последний выбор пользователя из cookie inv_branchId,
+  //   4) первый созданный филиал (createdAt asc, а не по алфавиту).
+  // Чужой/несуществующий id тихо откатывается на следующий вариант, а не сбрасывает URL.
   const requestedWarehouse = warehouses.find(
     (w) => w.id === requestedWarehouseId
   );
+  const cookieBranchId = cookieStore.get(INVENTORY_BRANCH_COOKIE)?.value;
   const activeBranchId =
     requestedWarehouse?.branchId ??
     branches.find((b) => b.id === requestedBranchId)?.id ??
-    branches[0]?.id ??
+    branches.find((b) => b.id === cookieBranchId)?.id ??
+    oldestBranch?.id ??
     null;
 
   // Активный склад: явный warehouseId, иначе первый склад активного филиала.

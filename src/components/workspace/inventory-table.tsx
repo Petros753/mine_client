@@ -26,6 +26,22 @@ import { InventoryRestockDialog } from "./inventory-restock-dialog";
 import { compareStrings } from "@/lib/utils";
 import { Search, Plus, Pencil, ArrowUpDown, PackagePlus } from "lucide-react";
 
+/**
+ * Имя cookie last-choice. Server-side страница /admin/inventory читает его
+ * как фолбэк для активного филиала, если в URL нет ?branchId. Именно для
+ * этого имя экспортировано — чтобы страница и клиент были синхронизированы.
+ */
+export const INVENTORY_BRANCH_COOKIE = "inv_branchId";
+
+const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30 дней
+
+function rememberBranch(branchId: string | null): void {
+  if (typeof document === "undefined" || !branchId) return;
+  document.cookie = `${INVENTORY_BRANCH_COOKIE}=${encodeURIComponent(
+    branchId
+  )}; path=/; max-age=${COOKIE_MAX_AGE_SECONDS}; samesite=lax`;
+}
+
 type InventoryItem = {
   id: string;
   warehouseId: string;
@@ -118,14 +134,18 @@ export function InventoryTable({
 
   const switchWarehouse = (id: string) => {
     // Держим branchId в URL — так после перезагрузки/шеринга ссылки
-    // страница остаётся на том же филиале, а не «прыгает» на первый
+    // страница остаётся на том же филиале, а не «прыгает» на первый.
+    // И в cookie — чтобы возврат в /admin/inventory без query-параметров
+    // (например через sidebar после «Аналитики») тоже вспомнил филиал.
+    rememberBranch(activeBranchId);
     const suffix = activeBranchId ? `&branchId=${activeBranchId}` : "";
     router.push(`/admin/inventory?warehouseId=${id}${suffix}`);
   };
 
   const switchBranch = (id: string) => {
     // При смене филиала конкретный склад ещё не выбран — сервер сам
-    // подставит первый склад нового филиала
+    // подставит первый склад нового филиала.
+    rememberBranch(id);
     router.push(`/admin/inventory?branchId=${id}`);
   };
 
