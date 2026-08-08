@@ -1,12 +1,44 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdminCompanyId } from "@/lib/tenant";
+import { INVENTORY_BRANCH_COOKIE } from "./constants";
 
 export interface InventoryFormState {
   error?: string;
   ok?: boolean;
+}
+
+/**
+ * Запомнить последний выбранный филиал для /admin/inventory.
+ *
+ * Пишем cookie на сервере, а не через document.cookie: только сервер может
+ * вызвать revalidatePath — иначе Router Cache клиента продолжит отдавать
+ * RSC, отрендеренный ДО выставления cookie, и повторный заход по чистому
+ * /admin/inventory через sidebar показывал бы старый дефолтный филиал.
+ */
+export async function rememberInventoryBranch(branchId: string): Promise<void> {
+  const companyId = await requireAdminCompanyId();
+
+  // Не доверяем клиенту: проверяем, что филиал принадлежит его компании,
+  // иначе злонамеренный запрос мог бы записать чужой id в cookie.
+  const branch = await prisma.branch.findFirst({
+    where: { id: branchId, companyId },
+    select: { id: true },
+  });
+  if (!branch) return;
+
+  const store = await cookies();
+  store.set(INVENTORY_BRANCH_COOKIE, branch.id, {
+    path: "/",
+    maxAge: 60 * 60 * 24 * 30, // 30 дней
+    sameSite: "lax",
+    httpOnly: false,
+  });
+
+  revalidatePath("/admin/inventory");
 }
 
 /** Единицы измерения: те же, что и в диалоге создания товара */

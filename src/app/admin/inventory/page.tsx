@@ -2,10 +2,8 @@ import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { getCompanyBranches, requireAdminCompanyId } from "@/lib/tenant";
 import { PageShell } from "@/components/workspace/page-shell";
-import {
-  InventoryTable,
-  INVENTORY_BRANCH_COOKIE,
-} from "@/components/workspace/inventory-table";
+import { InventoryTable } from "@/components/workspace/inventory-table";
+import { INVENTORY_BRANCH_COOKIE } from "./constants";
 
 interface InventoryPageProps {
   searchParams: Promise<{ warehouseId?: string; branchId?: string }>;
