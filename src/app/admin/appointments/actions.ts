@@ -37,7 +37,7 @@ export async function updateAppointmentStatus(formData: FormData) {
   // запись менять нельзя
   const appointment = await prisma.appointment.findFirst({
     where: { id: appointmentId, branch: { companyId } },
-    select: { id: true, status: true },
+    select: { id: true, status: true, serviceId: true, branchId: true },
   });
 
   if (!appointment) {
@@ -60,6 +60,17 @@ export async function updateAppointmentStatus(formData: FormData) {
     data: { status: nextStatus },
   });
 
+  // При завершении визита списываем материалы со склада по тех.карте
+  // услуги. Отдельный шаг: не хочется, чтобы сбой списания откатывал
+  // саму смену статуса — мастер уже оказал услугу.
+  if (nextStatus === "COMPLETED") {
+    await consumeIngredients(
+      appointment.id,
+      appointment.serviceId,
+      appointment.branchId
+    );
+  }
+
   // Уведомляем клиента о смене статуса (COMPLETED и NO_SHOW — без письма)
   if (nextStatus === "CONFIRMED") {
     await notifyClient(appointmentId, "confirmed");
@@ -68,6 +79,55 @@ export async function updateAppointmentStatus(formData: FormData) {
   }
 
   revalidateAppointmentViews();
+}
+
+/**
+ * Списание материалов по тех.карте услуги при завершении визита.
+ *
+ * Пишем строки CONSUMPTION с отрицательным количеством и одновременно
+ * уменьшаем InventoryItem.quantity. Всё внутри prisma.$transaction —
+ * иначе журнал и остаток могут разъехаться.
+ *
+ * Отрицательный остаток допускаем сознательно: услуга уже оказана, а
+ * минусовой остаток — сигнал администратору, что пора закупать.
+ */
+async function consumeIngredients(
+  appointmentId: string,
+  serviceId: string,
+  branchId: string
+): Promise<void> {
+  const ingredients = await prisma.serviceIngredient.findMany({
+    where: {
+      serviceId,
+      // Материалы из другого филиала списывать нельзя — тех.карту привязали
+      // к филиалу услуги, но подстраховываемся, если данные разошлись.
+      // Склад товара внутри филиала не важен: любой склад филиала подходит.
+      inventoryItem: { warehouse: { branchId } },
+    },
+    select: { inventoryItemId: true, quantityUsed: true },
+  });
+
+  if (ingredients.length === 0) return;
+
+  await prisma.$transaction([
+    prisma.inventoryTransaction.createMany({
+      data: ingredients.map((ing) => ({
+        inventoryItemId: ing.inventoryItemId,
+        branchId,
+        type: "CONSUMPTION" as const,
+        // Списание — со знаком минус: сумма quantity по журналу тогда
+        // сходится с текущим остатком
+        quantity: ing.quantityUsed.negated(),
+        appointmentId,
+      })),
+    }),
+    ...ingredients.map((ing) =>
+      prisma.inventoryItem.update({
+        where: { id: ing.inventoryItemId },
+        data: { quantity: { decrement: ing.quantityUsed } },
+      })
+    ),
+  ]);
 }
 
 export interface CreateAppointmentState {

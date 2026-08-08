@@ -23,16 +23,38 @@ export async function createBranch(
     return { error: "Введите название филиала" };
   }
 
-  await prisma.branch.create({
-    data: {
-      companyId,
-      name,
-      address: address || null,
-      phone: phone || null,
-    },
+  // Стартовые склады, аналогично дефолтам YCLIENTS: чтобы админ сразу мог
+  // заводить товары, не переходя предварительно в /admin/inventory/warehouses.
+  // Всё в одной транзакции — филиал без хотя бы одного склада заводить
+  // бессмысленно, а откатывать пол-состояния мы не хотим.
+  await prisma.$transaction(async (tx) => {
+    const branch = await tx.branch.create({
+      data: {
+        companyId,
+        name,
+        address: address || null,
+        phone: phone || null,
+      },
+    });
+
+    await tx.warehouse.createMany({
+      data: [
+        {
+          branchId: branch.id,
+          name: "Расходники",
+          description: "Для учёта расходных материалов",
+        },
+        {
+          branchId: branch.id,
+          name: "Товары",
+          description: "Для учёта продаж в магазине",
+        },
+      ],
+    });
   });
 
   revalidatePath("/admin/branches");
+  revalidatePath("/admin/inventory/warehouses");
   return { ok: true };
 }
 

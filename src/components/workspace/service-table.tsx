@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { ServiceDialog } from "./service-dialog";
+import { compareStrings } from "@/lib/utils";
 import { Search, Plus, Pencil, ArrowUpDown } from "lucide-react";
 
 type Service = {
@@ -24,17 +25,27 @@ type Service = {
   durationMinutes: number;
   price: number;
   isActive: boolean;
+  ingredients: Array<{ inventoryItemId: string; quantityUsed: number }>;
 };
+
+interface InventoryOption {
+  id: string;
+  name: string;
+  unit: string;
+  branchId: string;
+  warehouseName: string;
+}
 
 interface ServiceTableProps {
   services: Service[];
   branches: Array<{ id: string; name: string }>;
+  inventoryItems: InventoryOption[];
 }
 
 type SortKey = "name" | "branch" | "price" | "duration";
 type SortDir = "asc" | "desc";
 
-export function ServiceTable({ services, branches }: ServiceTableProps) {
+export function ServiceTable({ services, branches, inventoryItems }: ServiceTableProps) {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({
     key: "name",
@@ -62,10 +73,10 @@ export function ServiceTable({ services, branches }: ServiceTableProps) {
     rows.sort((a, b) => {
       const dir = sort.dir === "asc" ? 1 : -1;
       if (sort.key === "name") {
-        return a.name.localeCompare(b.name) * dir;
+        return compareStrings(a.name, b.name) * dir;
       }
       if (sort.key === "branch") {
-        return a.branchName.localeCompare(b.branchName) * dir;
+        return compareStrings(a.branchName, b.branchName) * dir;
       }
       if (sort.key === "price") {
         return (a.price - b.price) * dir;
@@ -196,6 +207,7 @@ export function ServiceTable({ services, branches }: ServiceTableProps) {
         onOpenChange={setDialogOpen}
         branches={branches}
         service={editing}
+        inventoryItems={inventoryItems}
       />
     </div>
   );

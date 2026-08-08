@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
+import { Trash2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +19,21 @@ export interface ServiceFormState {
   ok?: boolean;
 }
 
+interface InventoryOption {
+  id: string;
+  name: string;
+  unit: string;
+  branchId: string;
+  warehouseName: string;
+}
+
+interface IngredientRow {
+  /** Локальный ключ строки — item.id уже занят как значение селекта */
+  key: string;
+  inventoryItemId: string;
+  quantityUsed: string;
+}
+
 interface ServiceFormProps {
   action: (prevState: ServiceFormState, formData: FormData) => Promise<ServiceFormState>;
   branches: Array<{ id: string; name: string }>;
@@ -30,27 +46,81 @@ interface ServiceFormProps {
     durationMinutes: number;
     price: number;
     isActive: boolean;
+    ingredients: Array<{ inventoryItemId: string; quantityUsed: number }>;
   } | null;
+  /**
+   * Товары склада для секции «Списание материалов». Секция показывается
+   * только в режиме редактирования и только если товары переданы —
+   * форма создания услуги ими не пользуется.
+   */
+  inventoryItems?: InventoryOption[];
   onSuccess?: () => void;
   submitLabel?: string;
 }
+
+let ingredientKeySeq = 0;
+const nextIngredientKey = () => `ing-${++ingredientKeySeq}`;
 
 export function ServiceForm({
   action,
   branches,
   defaultBranchId,
   service,
+  inventoryItems,
   onSuccess,
   submitLabel,
 }: ServiceFormProps) {
   const isEdit = !!service;
   const [state, formAction, pending] = useActionState(action, {});
 
+  const [branchId, setBranchId] = useState<string>(
+    service?.branchId ?? defaultBranchId ?? branches[0]?.id ?? ""
+  );
+
+  const [ingredients, setIngredients] = useState<IngredientRow[]>(
+    () =>
+      service?.ingredients.map((ing) => ({
+        key: nextIngredientKey(),
+        inventoryItemId: ing.inventoryItemId,
+        quantityUsed: String(ing.quantityUsed),
+      })) ?? []
+  );
+
   useEffect(() => {
     if (state.ok && onSuccess) {
       onSuccess();
     }
   }, [state.ok, onSuccess]);
+
+  // Тех.карта привязана к филиалу услуги: показываем только товары этого
+  // филиала. При смене филиала строки с чужими товарами перестают быть
+  // валидными, но не удаляем автоматически — просто помечаем в выборе.
+  const branchInventory = useMemo(
+    () => (inventoryItems ?? []).filter((i) => i.branchId === branchId),
+    [inventoryItems, branchId]
+  );
+
+  const showIngredientsSection = isEdit && inventoryItems !== undefined;
+
+  const addIngredient = () => {
+    setIngredients((rows) => [
+      ...rows,
+      { key: nextIngredientKey(), inventoryItemId: "", quantityUsed: "" },
+    ]);
+  };
+
+  const removeIngredient = (key: string) => {
+    setIngredients((rows) => rows.filter((r) => r.key !== key));
+  };
+
+  const updateIngredient = (
+    key: string,
+    patch: Partial<Pick<IngredientRow, "inventoryItemId" | "quantityUsed">>
+  ) => {
+    setIngredients((rows) =>
+      rows.map((r) => (r.key === key ? { ...r, ...patch } : r))
+    );
+  };
 
   return (
     <form action={formAction} className="space-y-4">
@@ -60,10 +130,17 @@ export function ServiceForm({
         <Label htmlFor="branchId">Филиал *</Label>
         <Select
           name="branchId"
-          defaultValue={service?.branchId ?? defaultBranchId ?? branches[0]?.id}
+          value={branchId}
+          onValueChange={(v) => setBranchId(v ?? "")}
         >
           <SelectTrigger>
-            <SelectValue placeholder="Выберите филиал" />
+            {/* base-ui: без render-функции SelectValue рисует id */}
+            <SelectValue placeholder="Выберите филиал">
+              {(value) =>
+                branches.find((b) => b.id === value)?.name ??
+                "Выберите филиал"
+              }
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {branches.map((branch) => (
@@ -135,6 +212,125 @@ export function ServiceForm({
           <Label htmlFor="isActive" className="font-normal">
             Активна
           </Label>
+        </div>
+      )}
+
+      {showIngredientsSection && (
+        <div className="space-y-2 rounded-md border p-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <Label className="text-sm font-medium">Списание материалов</Label>
+              <p className="text-xs text-muted-foreground">
+                Товары, которые уходят на одну процедуру. Списываются со
+                склада при завершении визита.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={addIngredient}
+              disabled={branchInventory.length === 0}
+            >
+              <Plus className="mr-1.5 h-3.5 w-3.5" />
+              Добавить
+            </Button>
+          </div>
+
+          {ingredients.length === 0 && (
+            <p className="text-xs text-muted-foreground">
+              {branchInventory.length === 0
+                ? "У этого филиала пока нет товаров на складе."
+                : "Тех.карта пуста — при завершении визита ничего не списывается."}
+            </p>
+          )}
+
+          <div className="space-y-2">
+            {ingredients.map((row) => {
+              const selectedItem = branchInventory.find(
+                (i) => i.id === row.inventoryItemId
+              );
+              // Сохраняем чужой (уже выбранный, но из другого филиала) товар
+              // видимым — иначе после смены филиала строка становится пустой
+              // молча
+              const orphaned =
+                row.inventoryItemId && !selectedItem
+                  ? (inventoryItems ?? []).find(
+                      (i) => i.id === row.inventoryItemId
+                    )
+                  : null;
+
+              return (
+                <div key={row.key} className="flex items-start gap-2">
+                  <div className="flex-1">
+                    <Select
+                      name="ingredientItemId"
+                      value={row.inventoryItemId}
+                      onValueChange={(v) =>
+                        updateIngredient(row.key, {
+                          inventoryItemId: v ?? "",
+                        })
+                      }
+                    >
+                      <SelectTrigger>
+                        {/* base-ui: без render-функции SelectValue рисует id */}
+                        <SelectValue placeholder="Выберите товар">
+                          {(value) => {
+                            const it =
+                              branchInventory.find((x) => x.id === value) ??
+                              (orphaned?.id === value ? orphaned : null);
+                            if (!it) return "Выберите товар";
+                            const suffix =
+                              orphaned && orphaned.id === it.id
+                                ? " — другой филиал"
+                                : "";
+                            return `${it.name} (${it.unit}) · ${it.warehouseName}${suffix}`;
+                          }}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {branchInventory.map((it) => (
+                          <SelectItem key={it.id} value={it.id}>
+                            {it.name} ({it.unit}) · {it.warehouseName}
+                          </SelectItem>
+                        ))}
+                        {orphaned && (
+                          <SelectItem value={orphaned.id}>
+                            {orphaned.name} ({orphaned.unit}) · {orphaned.warehouseName} — другой филиал
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="w-28">
+                    <Input
+                      name="ingredientQuantity"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      required
+                      value={row.quantityUsed}
+                      onChange={(e) =>
+                        updateIngredient(row.key, {
+                          quantityUsed: e.target.value,
+                        })
+                      }
+                      placeholder={selectedItem?.unit ?? "кол-во"}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeIngredient(row.key)}
+                    title="Убрать"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

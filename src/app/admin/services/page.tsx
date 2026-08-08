@@ -7,11 +7,23 @@ export default async function ServicesPage() {
   const companyId = await requireAdminCompanyId();
   const branches = await getCompanyBranches(companyId);
 
-  const services = await prisma.service.findMany({
-    where: { branch: { companyId } },
-    include: { branch: true },
-    orderBy: { createdAt: "desc" },
-  });
+  const [services, inventoryItems] = await Promise.all([
+    prisma.service.findMany({
+      where: { branch: { companyId } },
+      include: { branch: true, ingredients: true },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.inventoryItem.findMany({
+      where: { warehouse: { branch: { companyId } }, isActive: true },
+      select: {
+        id: true,
+        name: true,
+        unit: true,
+        warehouse: { select: { id: true, name: true, branchId: true } },
+      },
+      orderBy: { name: "asc" },
+    }),
+  ]);
 
   const rows = services.map((service) => ({
     id: service.id,
@@ -22,11 +34,27 @@ export default async function ServicesPage() {
     durationMinutes: service.durationMinutes,
     price: Number(service.price),
     isActive: service.isActive,
+    ingredients: service.ingredients.map((i) => ({
+      inventoryItemId: i.inventoryItemId,
+      quantityUsed: Number(i.quantityUsed),
+    })),
+  }));
+
+  const inventory = inventoryItems.map((i) => ({
+    id: i.id,
+    name: i.name,
+    unit: i.unit,
+    branchId: i.warehouse.branchId,
+    warehouseName: i.warehouse.name,
   }));
 
   return (
     <PageShell title="Услуги" subtitle="Управление услугами и ценами">
-      <ServiceTable services={rows} branches={branches} />
+      <ServiceTable
+        services={rows}
+        branches={branches}
+        inventoryItems={inventory}
+      />
     </PageShell>
   );
 }

@@ -128,7 +128,12 @@ export function Topbar({
             onValueChange={(value) => value && setBranch(value)}
           >
             <SelectTrigger className="h-8 w-[180px] text-xs">
-              <SelectValue placeholder="Филиал" />
+              {/* base-ui: без render-функции SelectValue рисует id */}
+              <SelectValue placeholder="Филиал">
+                {(value) =>
+                  branches.find((b) => b.id === value)?.name ?? "Филиал"
+                }
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {branches.map((branch) => (
