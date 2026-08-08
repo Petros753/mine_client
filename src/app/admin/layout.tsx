@@ -17,7 +17,16 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
 
   const companyId = session.user.companyId;
-  const [branches, employees] = await Promise.all([
+  const [company, branches, employees] = await Promise.all([
+    // Название компании — «шапка» sidebar. Раньше туда шло имя первого
+    // филиала (`branches[0]?.name`), которое зависело от порядка и вводило
+    // в заблуждение владельцев с несколькими филиалами. Активный филиал
+    // остаётся на уровне конкретной страницы (топбар календаря, селект
+    // на /admin/inventory).
+    prisma.company.findUnique({
+      where: { id: companyId },
+      select: { name: true },
+    }),
     getCompanyBranches(companyId),
     prisma.employee.findMany({
       where: { branch: { companyId } },
@@ -41,7 +50,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           lastName: e.user.lastName,
         }))}
         branches={branches}
-        companyName={branches[0]?.name}
+        companyName={company?.name}
         onSignOut={handleSignOut}
       />
       <div className="flex flex-1 flex-col overflow-hidden">{children}</div>
